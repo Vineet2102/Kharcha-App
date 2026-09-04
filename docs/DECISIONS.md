@@ -537,3 +537,85 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   entity list, not just the ones with seed data); `outbox_entries` empty;
   no sync-related errors in the app process's logcat; sync banner rendered
   nothing (correct idle-and-clean state).
+
+## 2026-09-04 — Phase 6 (Dashboard)
+
+### Month-over-month is the same total query, called twice
+- T-6.1 lists "month-over-month" as its own aggregate alongside household/
+  per-member/per-category/per-payment-method totals. Rather than a
+  dedicated comparison query, `ReportRepository.watchExpenseTotal()` just
+  takes an arbitrary `monthStart`; the household summary card calls it once
+  for the selected month and again for `AppTime.monthAfter(monthStart, -1)`
+  and computes the % change client-side. One query, reused, instead of a
+  second near-duplicate DAO method.
+
+### Tapping a member on the Dashboard filters the Expense List via a keepAlive controller, not route `extra`
+- Every other cross-screen data handoff in this app so far (duplicate-expense,
+  expense id) passes through `GoRouterState.extra` on a `context.push()` into
+  a modal route with its own navigator. The Expense List tab is different:
+  it's a `StatefulShellBranch` leaf inside the bottom-nav `IndexedStack`, so
+  reaching it from the Dashboard tab means switching branches, not pushing a
+  new route — and go_router's shell branches don't thread `extra` the same
+  way a plain `GoRoute` push does.
+- Solved with `ExpenseListPresetFilterController` (`features/expenses/
+  controllers/`, Riverpod `Notifier`, `keepAlive`): the Dashboard's member-bar
+  `onTap` sets it to an `ExpenseFilter` (current month + that member) and
+  calls `context.go(AppRoutes.expenses)`; `ExpenseListScreen.initState` reads
+  it once, applies it as the screen's starting filter, and immediately clears
+  it — so it never re-applies on a later, unrelated visit to the Expenses tab.
+  `keepAlive` matters here specifically because the value is set from outside
+  the Expense List's own widget subtree and must still be there once that
+  screen mounts a moment later.
+
+### Cards 2 (budget progress) and 6 (pending recurring) intentionally not stubbed
+- T-6.3 explicitly scopes Phase 6 to "Dashboard cards 1, 3, 4, 5" — budget
+  progress needs Phase 8's `BudgetRepository` and pending-recurring needs
+  Phase 9's recurring-rule posting logic, neither of which exist yet. Rather
+  than add empty/placeholder card widgets for them now, they're simply
+  absent from `DashboardScreen` until their own phase lands with real data
+  to show — an empty card that can never have content in the meantime would
+  just be dead UI to delete later.
+
+### Bug found & fixed — `widget_test.dart`'s "signed-in boots to dashboard" test started hanging
+- Found once `DashboardScreen` stopped being a `PlaceholderScreen` and began
+  issuing live Drift stream queries (`ReportRepository`, `categoriesProvider`,
+  `householdProfilesProvider`) as soon as it mounts. The existing test never
+  overrode `appDatabaseProvider`, so it exercised the real, path-provider-
+  backed `AppDatabase()` — whose `NativeDatabase.createInBackground()` spins
+  up a background isolate — inside a `flutter_test` widget test, which runs
+  test bodies under `fake_async`. Two separate failures resulted:
+  1. **"A Timer is still pending even after the widget tree was disposed"**:
+     when the `ProviderScope`/widget tree is torn down at test end, disposing
+     each active `StreamProvider` cancels its underlying Drift stream, which
+     schedules a zero-duration debounce `Timer`
+     (`StreamQueryStore.markAsClosed`) to actually close it. `pumpAndSettle()`
+     flushes animation frames and microtasks, not a bare `Timer`, so the
+     framework's end-of-test invariant check tripped on it.
+  2. With the real isolate-backed database also in play, the same test then
+     hung for the full 10-minute `flutter test` timeout rather than failing
+     fast — the background isolate's own keepalive outlived `fake_async`'s
+     clock entirely.
+- Fixed two ways in `test/widget_test.dart`: (1) both tests now override
+  `appDatabaseProvider` with `AppDatabase.forTesting(NativeDatabase.memory())`
+  — no path-provider, no background isolate; (2) a shared `_disposeAndFlush`
+  helper (`pumpWidget(const SizedBox())` to force the tree to unmount, then
+  one more `pump(Duration(milliseconds: 1))`) runs at the end of each test to
+  let drift's pending debounce timer actually fire before the framework's
+  invariant check runs. Worth remembering for any future widget test that
+  pumps `KharchaApp`/`ProviderScope` while a screen holds live Drift streams.
+
+### Live verification (Gate 6)
+- Ran live on the `kharcha_test` emulator via
+  `fvm flutter run --dart-define-from-file=config/dev.json`, screenshot
+  captured with `adb exec-out screencap`. Against the real household's
+  existing seed data (one ₹50.00 expense, category "zomato", logged by
+  Vineet, no income rows), the Dashboard rendered: "This month" card —
+  Spent ₹50.00 / Income ₹0.00 / Net saved -₹50.00 (red, no month-over-month
+  row since there's no prior-month data to compare against — the T-6.5
+  guard, not a bug); "Per member" — Vineet, ₹50.00, 100%, full-width bar;
+  "Top categories" — zomato, 100%, ₹50.00, with its category icon/colour;
+  "Recent activity" — the single expense with the payer's name and amount.
+  All four figures reconcile with what the Expense List shows for the same
+  month, satisfying Gate 6's literal acceptance bar even at this small a
+  dataset, and no `NaN`/`Infinity`/divide-by-zero artifacts appeared
+  anywhere on screen.
