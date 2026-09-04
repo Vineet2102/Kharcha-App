@@ -255,7 +255,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
       setState(() => _amountError = 'Enter a valid amount.');
       return;
     }
-    if (money.paise > AppConstants.maxExpenseAmountPaise) {
+    if (money.paise > AppConstants.maxTransactionAmountPaise) {
       setState(() => _amountError = 'Amount is too large.');
       return;
     }

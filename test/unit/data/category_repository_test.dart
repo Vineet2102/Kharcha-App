@@ -115,6 +115,41 @@ void main() {
     },
   );
 
+  test(
+    'delete is blocked while a non-deleted income uses the category',
+    () async {
+      await repo.create(
+        householdId: 'h1',
+        name: 'Salary',
+        kind: CategoryKind.income,
+        iconKey: 'payments',
+        colourHex: '#4CAF50',
+      );
+      final id = (await db.categoryDao.watchAll('h1').first).single.id;
+      final now = DateTime.utc(2026, 9, 1);
+      await db.incomeDao.upsert(
+        IncomesCompanion.insert(
+          id: 'i1',
+          householdId: 'h1',
+          userId: 'u1',
+          amountPaise: 50000,
+          categoryId: Value(id),
+          receivedAt: now,
+          receivedOn: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      final result = await repo.delete(id);
+
+      expect(result.isErr, isTrue);
+      expect(result.failureOrNull, isA<ValidationFailure>());
+      final category = await repo.findById(id);
+      expect(category, isNotNull, reason: 'not deleted');
+    },
+  );
+
   test('delete succeeds and soft-deletes once unused', () async {
     await repo.create(
       householdId: 'h1',

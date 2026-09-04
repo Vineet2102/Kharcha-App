@@ -13,6 +13,7 @@ class AppRoutes {
 
   static const expenseNew = '/expense/new';
   static const expenseDetail = '/expense/:id';
+  static const income = '/income';
   static const incomeNew = '/income/new';
   static const incomeDetail = '/income/:id';
 

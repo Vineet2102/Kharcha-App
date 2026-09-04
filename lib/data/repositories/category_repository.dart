@@ -82,10 +82,12 @@ class CategoryRepository {
   }
 
   /// Soft-deletes, unless the category is still used by a non-deleted
-  /// expense (spec §11.5) — callers should offer "Archive instead" on
-  /// [ValidationFailure].
+  /// expense or income (spec §11.5) — callers should offer "Archive instead"
+  /// on [ValidationFailure].
   Future<Result<void, Failure>> delete(String id) async {
-    final usage = await _db.expenseDao.countByCategory(id);
+    final usage =
+        await _db.expenseDao.countByCategory(id) +
+        await _db.incomeDao.countByCategory(id);
     if (usage > 0) {
       return const Result.err(
         ValidationFailure(

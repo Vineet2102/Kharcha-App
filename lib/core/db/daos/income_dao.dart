@@ -21,6 +21,9 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
   Future<Income?> findById(String id) =>
       (select(incomes)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  Stream<Income?> watchById(String id) =>
+      (select(incomes)..where((t) => t.id.equals(id))).watchSingleOrNull();
+
   Future<void> upsert(IncomesCompanion entry) =>
       into(incomes).insertOnConflictUpdate(entry);
 
@@ -45,4 +48,15 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
 
   Future<int> hardDelete(String id) =>
       (delete(incomes)..where((t) => t.id.equals(id))).go();
+
+  /// Used by the category delete guard (spec §11.5) alongside
+  /// `ExpenseDao.countByCategory`: a non-deleted income still referencing the
+  /// id blocks a hard/soft delete in favour of "Archive instead".
+  Future<int> countByCategory(String categoryId) async {
+    final query = selectOnly(incomes)
+      ..addColumns([incomes.id.count()])
+      ..where(incomes.categoryId.equals(categoryId) & incomes.deletedAt.isNull());
+    final row = await query.getSingle();
+    return row.read(incomes.id.count()) ?? 0;
+  }
 }

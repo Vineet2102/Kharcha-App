@@ -280,7 +280,11 @@ class _SummaryBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _SummaryRow(label: 'Spent', value: Money(expenseTotal).format()),
-        _SummaryRow(label: 'Income', value: Money(incomeTotal).format()),
+        _SummaryRow(
+          label: 'Income',
+          value: Money(incomeTotal).format(),
+          onTap: () => context.push(AppRoutes.income),
+        ),
         _SummaryRow(
           label: 'Net saved',
           value: net.format(),
@@ -317,26 +321,31 @@ class _SummaryRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.onTap,
   });
   final String label;
   final String value;
   final Color? valueColor;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(color: valueColor),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: valueColor),
+          ),
+        ],
+      ),
+    );
+    return onTap == null ? row : InkWell(onTap: onTap, child: row);
+  }
 }
 
 /// Card 3 (spec §11.4): horizontal bars, sorted descending, tap to filter

@@ -60,6 +60,11 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Payment methods'),
             onTap: () => context.push(AppRoutes.paymentMethods),
           ),
+          ListTile(
+            leading: const Icon(Icons.attach_money_outlined),
+            title: const Text('Income'),
+            onTap: () => context.push(AppRoutes.income),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

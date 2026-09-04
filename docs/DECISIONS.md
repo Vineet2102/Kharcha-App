@@ -619,3 +619,90 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   month, satisfying Gate 6's literal acceptance bar even at this small a
   dataset, and no `NaN`/`Infinity`/divide-by-zero artifacts appeared
   anywhere on screen.
+
+## 2026-09-04 — Phase 7 (Income)
+
+### `IncomeRepository` deliberately drops three ExpenseRepository features
+- Spec §11.6 says income is "same shape as expenses" for its *fields*
+  (amount, category, date, source, note, member), not for every behaviour
+  `ExpenseRepository` has. Three things were intentionally not carried over,
+  each because nothing in the spec calls for it on income and adding it
+  would be unrequested scope (§0 rule 4):
+  - **No duplicate guard.** §11.2's 2-minute same-amount/category check is
+    an expense-specific UX affordance; §11.6 doesn't mention one for income.
+  - **No Undo snackbar / `undoCreate()`.** Same reasoning — §11.2's 5s Undo
+    window is never mentioned for income.
+  - **No payment method.** The `incomes` table has no `payment_method_id`
+    column (§6.3) — there's nothing to pick.
+- Everything else mirrors `ExpenseRepository` exactly: local-first Drift
+  read, every write → Drift + outbox (§9.1's iron rule), `receivedOn`
+  derived from `receivedAt` via `AppTime.calendarDate` (same reasoning as
+  `spentOn`, so the client and the server's `set_ist_date()` trigger never
+  disagree).
+
+### Same ownership rule as expenses for editing (T-7.2)
+- `0006_rls.sql`'s `inc_update`/`inc_delete` policies are byte-for-byte the
+  same shape as `exp_update`/`exp_delete` ("owner or admin") — confirmed by
+  reading the migration before building the screen. `IncomeDetailScreen`
+  therefore reuses T-5.9's pattern exactly: a non-owner, non-admin viewer
+  gets `_ReadOnlyIncomeView` instead of the form, rather than relying on RLS
+  alone to reject the write after the fact.
+
+### Income List has no filter sheet, search, or infinite scroll
+- The Expense List's filter sheet/free-text search/growing-limit pagination
+  (T-5.7/T-5.8) exist because a household can accumulate thousands of
+  expenses (§13's 5,000-row smoke test). Income entries are structurally
+  far rarer — salary, interest, the occasional rent receipt — so a single
+  unbounded `IncomeDao.watchAll` stream is simplest and sufficient. Spec
+  §11.6 only asks for "a separate list at `/income`", not filtering.
+  Revisit if a household's real usage proves this wrong.
+
+### Bug found & fixed — category delete guard never checked income usage
+- `CategoryRepository.delete()` (T-5.1) has always summed only
+  `expenseDao.countByCategory(id)` before allowing a soft-delete. Categories
+  can be `kind='income'` (5 are seeded — Salary, Business, etc.), but until
+  this phase nothing ever created an income row, so the gap was
+  unreachable. Phase 7 makes it reachable: deleting an in-use income
+  category would have succeeded silently, leaving that income's
+  `category_id` pointing at a soft-deleted category (not a hard constraint
+  violation server-side, since `category_id` is `on delete set null` only
+  for a *hard* delete — but the app never hard-deletes from this path, so
+  the row would just permanently reference an archived-looking category
+  with no "Archive instead" recovery offered).
+- Fixed by adding `IncomeDao.countByCategory` (mirroring
+  `ExpenseDao.countByCategory`) and summing both counts in
+  `CategoryRepository.delete()`. Covered by a new test in
+  `category_repository_test.dart` mirroring the existing expense-usage
+  guard test.
+
+### Dashboard's Income row navigation
+- `_SummaryRow` gained an optional `onTap`, used only by the Income row
+  (`context.push(AppRoutes.income)`) — satisfies spec §11.6's "reachable
+  ... from the Dashboard's income figure" literally, without touching the
+  Spent/Net saved rows which have no equivalent destination.
+
+### `AppConstants.maxExpenseAmountPaise` renamed to `maxTransactionAmountPaise`
+- The ₹10,00,00,000 sanity cap (spec §11.2) isn't expense-specific — it's a
+  client-side sanity bound reused as-is for income amounts too (the DB only
+  enforces `amount_paise > 0` server-side for both tables, per
+  `0003_transactions.sql`). Renamed for accuracy rather than referencing an
+  expense-named constant from the income form; the one call site in
+  `expense_detail_screen.dart` was updated alongside it.
+
+### Live verification (Gate 7)
+- Ran live on the `kharcha_test` emulator via
+  `fvm flutter run --dart-define-from-file=config/dev.json`. Automated
+  `adb shell input tap` **did** reach this emulator this session (contrast
+  with Phase 3's DECISIONS.md note that it didn't) — every tap in this
+  pass's walkthrough (Dashboard → Income row → FAB → category chip →
+  amount/source fields → Save → back to Dashboard) worked once coordinates
+  were computed correctly from the screenshot's *original* pixel dimensions
+  (1080×2400), not the tool's downscaled display dimensions (900×2000) —
+  an early tap on the FAB at the wrong (unscaled) coordinates silently
+  missed; `uiautomator dump`'s exact widget `bounds` was used to recover
+  once relying on scaled screenshot coordinates got a Save-button tap
+  wrong. Confirmed the on-device `kharcha.sqlite` lives at
+  `app_flutter/kharcha.sqlite` under the app's data dir, not
+  `databases/kharcha.sqlite` (unlike some other Flutter/Drift app layouts) —
+  `adb exec-out run-as com.panicker.kharcha cat app_flutter/kharcha.sqlite`
+  is the correct pull command for this app.

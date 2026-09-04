@@ -13,6 +13,7 @@ import '../features/expenses/screens/expense_detail_screen.dart';
 import '../features/expenses/screens/expense_list_screen.dart';
 import '../features/export/screens/export_screen.dart';
 import '../features/income/screens/income_detail_screen.dart';
+import '../features/income/screens/income_list_screen.dart';
 import '../features/payment_methods/screens/payment_method_list_screen.dart';
 import '../features/receipts/screens/receipt_viewer_screen.dart';
 import '../features/recurring/screens/recurring_detail_screen.dart';
@@ -112,6 +113,11 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) =>
             ExpenseDetailScreen(id: state.pathParameters['id']),
+      ),
+      GoRoute(
+        path: AppRoutes.income,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const IncomeListScreen(),
       ),
       GoRoute(
         path: AppRoutes.incomeNew,
