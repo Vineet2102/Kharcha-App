@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/logging/app_logger.dart';
@@ -73,4 +74,26 @@ Stream<domain.Profile?> currentProfile(Ref ref) {
 
   unawaited(ref.read(profileRepositoryProvider).refresh(userId));
   return ref.watch(profileRepositoryProvider).watch(userId);
+}
+
+/// Every member of the household — the "Paid by" selector (spec §11.2), the
+/// Expense List's member filter/name chip (spec §11.3), and the Dashboard's
+/// per-member breakdown (Phase 6).
+@Riverpod(keepAlive: true)
+Stream<List<domain.Profile>> householdProfiles(Ref ref) => ref
+    .watch(appDatabaseProvider)
+    .profileDao
+    .watchAll(AppConstants.seedHouseholdId)
+    .map((rows) => rows.map((r) => r.toDomain()).toList());
+
+/// Looks up one member's display name/colour from the already-loaded
+/// [householdProfilesProvider] list — avoids a second DB subscription per
+/// expense row in the list/detail screens.
+@riverpod
+domain.Profile? profileById(Ref ref, String id) {
+  final profiles = ref.watch(householdProfilesProvider).value ?? const [];
+  for (final profile in profiles) {
+    if (profile.id == id) return profile;
+  }
+  return null;
 }

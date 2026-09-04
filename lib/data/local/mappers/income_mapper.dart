@@ -4,21 +4,24 @@ import '../../../core/db/app_database.dart';
 import '../../../domain/models/income.dart' as domain;
 
 extension IncomeRowMapper on Income {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though it was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix).
   domain.Income toDomain() => domain.Income(
     id: id,
     householdId: householdId,
     userId: userId,
     amountPaise: amountPaise,
     categoryId: categoryId,
-    receivedAt: receivedAt,
-    receivedOn: receivedOn,
+    receivedAt: receivedAt.toUtc(),
+    receivedOn: receivedOn.toUtc(),
     note: note,
     source: source,
     recurringRuleId: recurringRuleId,
-    occurrenceDate: occurrenceDate,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    deletedAt: deletedAt,
+    occurrenceDate: occurrenceDate?.toUtc(),
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
+    deletedAt: deletedAt?.toUtc(),
   );
 }
 

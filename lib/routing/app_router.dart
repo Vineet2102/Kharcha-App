@@ -22,6 +22,7 @@ import '../features/settings/screens/members_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/shell/app_shell.dart';
 import '../data/remote/supabase_client_provider.dart';
+import '../domain/models/expense.dart' as domain;
 import 'go_router_refresh_stream.dart';
 import 'routes.dart';
 
@@ -102,7 +103,9 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.expenseNew,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ExpenseDetailScreen(),
+        builder: (context, state) => ExpenseDetailScreen(
+          duplicateFrom: state.extra as domain.Expense?,
+        ),
       ),
       GoRoute(
         path: AppRoutes.expenseDetail,

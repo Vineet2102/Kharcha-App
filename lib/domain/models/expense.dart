@@ -25,6 +25,14 @@ abstract class Expense with _$Expense {
     @JsonKey(name: 'created_at') required DateTime createdAt,
     @JsonKey(name: 'updated_at') required DateTime updatedAt,
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
+
+    /// Local-only sync bookkeeping (Drift's `is_dirty`, not a server column)
+    /// — the Expense List's cloud-off badge (spec §11.3). Excluded from
+    /// JSON in both directions: it must never be sent to Supabase, and a
+    /// server row (which has no such column) always means "not dirty".
+    @JsonKey(includeToJson: false, includeFromJson: false)
+    @Default(false)
+    bool isDirty,
   }) = _Expense;
 
   const Expense._();

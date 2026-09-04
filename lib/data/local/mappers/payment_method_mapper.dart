@@ -5,6 +5,9 @@ import '../../../domain/models/enums.dart';
 import '../../../domain/models/payment_method.dart' as domain;
 
 extension PaymentMethodRowMapper on PaymentMethod {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though it was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix).
   domain.PaymentMethod toDomain() => domain.PaymentMethod(
     id: id,
     householdId: householdId,
@@ -12,9 +15,9 @@ extension PaymentMethodRowMapper on PaymentMethod {
     type: PayMethodType.values.byName(type),
     isArchived: isArchived,
     sortOrder: sortOrder,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    deletedAt: deletedAt,
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
+    deletedAt: deletedAt?.toUtc(),
   );
 }
 

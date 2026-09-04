@@ -4,13 +4,16 @@ import '../../../core/db/app_database.dart';
 import '../../../domain/models/household.dart' as domain;
 
 extension HouseholdRowMapper on Household {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though it was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix).
   domain.Household toDomain() => domain.Household(
     id: id,
     name: name,
     currencyCode: currencyCode,
     timezone: timezone,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
   );
 }
 

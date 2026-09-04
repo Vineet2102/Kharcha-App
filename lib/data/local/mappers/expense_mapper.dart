@@ -4,6 +4,11 @@ import '../../../core/db/app_database.dart';
 import '../../../domain/models/expense.dart' as domain;
 
 extension ExpenseRowMapper on Expense {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though it was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix) — left
+  /// uncorrected here, editing an existing expense would silently push its
+  /// timestamps to the server 5:30 off (IST).
   domain.Expense toDomain() => domain.Expense(
     id: id,
     householdId: householdId,
@@ -11,17 +16,18 @@ extension ExpenseRowMapper on Expense {
     amountPaise: amountPaise,
     categoryId: categoryId,
     paymentMethodId: paymentMethodId,
-    spentAt: spentAt,
-    spentOn: spentOn,
+    spentAt: spentAt.toUtc(),
+    spentOn: spentOn.toUtc(),
     note: note,
     merchant: merchant,
     hasReceipt: hasReceipt,
     recurringRuleId: recurringRuleId,
-    occurrenceDate: occurrenceDate,
+    occurrenceDate: occurrenceDate?.toUtc(),
     createdByDevice: createdByDevice,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    deletedAt: deletedAt,
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
+    deletedAt: deletedAt?.toUtc(),
+    isDirty: isDirty,
   );
 }
 

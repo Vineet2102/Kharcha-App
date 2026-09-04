@@ -5,6 +5,9 @@ import '../../../domain/models/category.dart' as domain;
 import '../../../domain/models/enums.dart';
 
 extension CategoryRowMapper on Category {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though it was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix).
   domain.Category toDomain() => domain.Category(
     id: id,
     householdId: householdId,
@@ -14,9 +17,9 @@ extension CategoryRowMapper on Category {
     colourHex: colourHex,
     sortOrder: sortOrder,
     isArchived: isArchived,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    deletedAt: deletedAt,
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
+    deletedAt: deletedAt?.toUtc(),
   );
 }
 

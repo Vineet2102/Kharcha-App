@@ -4,6 +4,11 @@ import '../../../core/db/app_database.dart';
 import '../../../domain/models/attachment.dart' as domain;
 
 extension AttachmentRowMapper on Attachment {
+  /// `.toUtc()` on every DateTime: Drift decodes a stored instant with
+  /// `isUtc: false` even though the value was written as UTC (see
+  /// `docs/DECISIONS.md`, Phase 4's pull_service.dart fix) — left uncorrected
+  /// here, a domain model built from a local row would silently serialise
+  /// with the wrong offset the next time it's pushed.
   domain.Attachment toDomain() => domain.Attachment(
     id: id,
     householdId: householdId,
@@ -14,9 +19,9 @@ extension AttachmentRowMapper on Attachment {
     widthPx: widthPx,
     heightPx: heightPx,
     uploadedBy: uploadedBy,
-    createdAt: createdAt,
-    updatedAt: updatedAt,
-    deletedAt: deletedAt,
+    createdAt: createdAt.toUtc(),
+    updatedAt: updatedAt.toUtc(),
+    deletedAt: deletedAt?.toUtc(),
   );
 }
 

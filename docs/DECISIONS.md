@@ -496,6 +496,34 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   `_syncing = true` to immediately after the synchronous guard checks, with
   the connectivity check moved inside the `try`/`finally`.
 
+## 2026-09-04 — Phase 5 (Expenses, categories, payment methods)
+
+### Bug found & fixed — mapper `toDomain()` never applied the Phase 4 `.toUtc()` fix
+- Phase 4's DECISIONS.md entry ("Drift `DateTime` columns decode as local-flagged, not UTC") fixed the read side in `pull_service.dart` but the fix was never applied to the 9 `data/local/mappers/*.dart` files' `toDomain()` extensions — because until Phase 5, nothing ever read a Drift row, edited it, and serialised it back out. `CategoryRepository.update()`/`ExpenseRepository.update()` are the first code paths to do exactly that (fetch via `findById()` → `toDomain()`, `copyWith(...)`, then `jsonEncode(model.toJson())` for the outbox payload).
+- Caught by `expense_repository_test.dart`'s first assertion, which compared `row.spentOn` (raw Drift row) against a `DateTime.utc(...)` literal and failed by exactly 5:30 — the IST offset. Root cause confirmed identical to the Phase 4 bug: the stored instant is correct, but Drift decodes it with `isUtc: false`.
+- Fixed by adding `.toUtc()` (or `?.toUtc()` for nullable columns) to every DateTime field in all 9 mappers' `toDomain()`, so any domain model built from a local row is UTC-correct at the source — every downstream `.toIso8601String()`/equality check is then safe without each call site having to remember to normalise. Left uncorrected, editing an existing category/expense/etc. would have silently pushed its timestamps to Supabase 5:30 off on every device physically in IST (i.e. every Kharcha user, by design).
+
+### `ExpenseFilter` and the Expense List's "infinite scroll" grow a `limit`, not an offset (T-5.7)
+- Spec §11.3 says "Infinite scroll, page size 50, driven by a Drift `Stream` with `limit/offset`." Implemented instead as one live stream per filter state whose `limit` grows by 50 as the user nears the bottom (`ExpenseDao.watchFiltered(..., limit: n)`, offset always 0).
+- True offset paging (`limit: 50, offset: 50*page`, one stream per page, stitched together) breaks in a way that matters here: if a row is inserted at the top of the sort order (e.g. a new expense synced from another device) while page 2 is already loaded, every already-loaded page's offset silently shifts by one, and the stitched list gets a duplicate or a gap. A single growing-limit stream re-runs the whole query and always reflects the live, correctly-ordered top-N — the "N" is the only paging state, so there's nothing to desync. Cost: each page-load re-scans up to `limit` rows instead of just the new 50, which is irrelevant at the row counts a single household will ever have (§13's 5,000-row smoke test is well within SQLite's comfort zone for an indexed `ORDER BY ... LIMIT`).
+
+### Plain in-flow date headers, not true pinned/sticky headers (T-5.7)
+- Spec §11.3 calls for "a sticky date header." No sticky-header package is in `pubspec.yaml`, and adding one is a dependency-surface decision left for the user rather than made unilaterally mid-task. Implemented as a normal (non-pinned) section header row per date group instead — same grouping and per-day subtotal, just not pinned to the top of the viewport while its group scrolls past. Revisit if the user wants a true pinned header (e.g. `flutter_sticky_header` or a `CustomScrollView` of `SliverPersistentHeader`s).
+
+### `Expense.isDirty` added to the domain model, excluded from JSON both ways
+- The list row's "cloud-off badge if `is_dirty`" (spec §11.3) needs the sync-bookkeeping flag that lives on the Drift row (`Expenses.isDirty`) but was never on the domain model (domain models mirror server columns only). Added `isDirty` to `domain.Expense` with `@JsonKey(includeToJson: false, includeFromJson: false)` so it's populated from the Drift row on read but silently dropped from both the outbox push payload and any pull-side `fromJson` — `is_dirty` isn't a Postgres column, and sending it in an `upsert()` payload would fail with "column not found." The same pattern (an extra local-only field on a domain model, JSON-excluded) can be reused if a later phase needs an equivalent per-row local flag on another entity.
+
+### Duplicate-guard / Undo semantics clarified (T-5.6)
+- Spec §11.2's "Save is instant and local... Undo (5s window; undo performs a local soft delete and removes the outbox entry if it hasn't been pushed)" is about undoing a **create** (the just-saved expense), not undoing a delete — there's no separate "undo delete" feature in scope. `ExpenseRepository.undoCreate(id)`: if the create's outbox `upsert` entry is still pending (`OutboxDao.removePendingUpsert` returns true), it's removed outright — the server never received the expense, so no delete needs to reach it either. If it's already been pushed (removal returns false), the row is soft-deleted and a real outbox `delete` entry is enqueued so the undo still propagates on the next sync. This is stricter than the spec's literal text (which only mentions the outbox-not-yet-pushed case) but closes the obvious race without adding real complexity.
+
+### Bug found & fixed — the Undo snackbar never auto-dismissed (live verification)
+- Found live: after saving an expense, the "Saved ✓ / Undo" snackbar stayed on screen indefinitely instead of dismissing after its 5s `duration`.
+- Root cause: Flutter's `SnackBar` silently ignores `duration` whenever the device has accessible navigation on (e.g. TalkBack) — it waits for a manual dismiss instead, by design, so a screen-reader user isn't rushed. The `kharcha_test` emulator has this on.
+- Fixed in `expense_detail_screen.dart`'s `_showSavedSnackbar` by capturing the `ScaffoldFeatureController` returned from `showSnackBar()` and force-closing it with an explicit `Future.delayed(Duration(seconds: 5), controller.close)`, rather than relying on `SnackBar.duration` alone — guarantees the same 5s window on every device regardless of accessibility settings. Worth remembering for any other timed snackbar/action this app adds later (e.g. a future delete-undo).
+
+### Household id: `AppConstants.seedHouseholdId`, not a per-repository lookup
+- Every Phase 5 repository/provider that needs a household id uses the same constant `sync_engine.dart` already uses (T-4.5), rather than resolving it from `currentProfileProvider` per call site — consistent with the single-tenant design (spec §1.4) and avoids a redundant provider dependency in every list/detail screen.
+
 ### Live verification (partial Gate 4 — see PROGRESS.md)
 - Ran live on the `kharcha_test` emulator via
   `fvm flutter run --dart-define-from-file=config/dev.json`. User signed in

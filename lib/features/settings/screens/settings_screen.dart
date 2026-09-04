@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/profile_repository.dart';
+import '../../../routing/routes.dart';
 import '../../auth/controllers/sign_out_controller.dart';
 
-/// Settings hub (spec §11.13). Full UI (household, manage, notifications,
-/// data, about, diagnostics) is built out in Phase 14 — for now this only
-/// carries the sign-out action needed to exercise T-3.6 (wipe on sign-out).
+/// Settings hub (spec §11.13). Full UI (household, notifications, data,
+/// about, diagnostics) is built out in Phase 14 — this carries the
+/// sign-out action needed to exercise T-3.6, plus early links to the
+/// Phase 5 management screens (Categories/Payment methods), since without
+/// them those screens are otherwise unreachable from the UI.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -44,6 +48,17 @@ class SettingsScreen extends ConsumerWidget {
             leading: const CircleAvatar(child: Icon(Icons.person_outline)),
             title: Text(profile?.displayName ?? 'Profile'),
             subtitle: Text(profile?.isAdmin == true ? 'Admin' : 'Member'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.category_outlined),
+            title: const Text('Categories'),
+            onTap: () => context.push(AppRoutes.categories),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_balance_wallet_outlined),
+            title: const Text('Payment methods'),
+            onTap: () => context.push(AppRoutes.paymentMethods),
           ),
           const Divider(),
           ListTile(
