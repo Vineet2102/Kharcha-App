@@ -1,0 +1,81 @@
+import 'dart:io';
+
+import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../constants/app_constants.dart';
+import 'daos/attachment_dao.dart';
+import 'daos/budget_dao.dart';
+import 'daos/category_dao.dart';
+import 'daos/expense_dao.dart';
+import 'daos/income_dao.dart';
+import 'daos/outbox_dao.dart';
+import 'daos/payment_method_dao.dart';
+import 'daos/recurring_dao.dart';
+import 'daos/sync_meta_dao.dart';
+import 'tables/attachments_table.dart';
+import 'tables/budgets_table.dart';
+import 'tables/categories_table.dart';
+import 'tables/expenses_table.dart';
+import 'tables/households_table.dart';
+import 'tables/incomes_table.dart';
+import 'tables/outbox_entries_table.dart';
+import 'tables/payment_methods_table.dart';
+import 'tables/profiles_table.dart';
+import 'tables/recurring_rules_table.dart';
+import 'tables/sync_meta_table.dart';
+
+part 'app_database.g.dart';
+
+/// The local SQLite mirror (spec §9.5). This is the source of truth for the
+/// UI — every read is a Drift stream, every write goes here plus an outbox
+/// row. Only the `SyncEngine` (Phase 4) touches Supabase directly.
+@DriftDatabase(
+  tables: [
+    Households,
+    Profiles,
+    Categories,
+    PaymentMethods,
+    Expenses,
+    Incomes,
+    Attachments,
+    Budgets,
+    RecurringRules,
+    OutboxEntries,
+    SyncMeta,
+  ],
+  daos: [
+    ExpenseDao,
+    IncomeDao,
+    CategoryDao,
+    PaymentMethodDao,
+    BudgetDao,
+    RecurringDao,
+    AttachmentDao,
+    OutboxDao,
+    SyncMetaDao,
+  ],
+)
+class AppDatabase extends _$AppDatabase {
+  AppDatabase() : super(_openConnection());
+
+  AppDatabase.forTesting(super.executor);
+
+  @override
+  int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+      );
+}
+
+LazyDatabase _openConnection() {
+  return LazyDatabase(() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File(p.join(dir.path, AppConstants.dbFileName));
+    return NativeDatabase.createInBackground(file);
+  });
+}

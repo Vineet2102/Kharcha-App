@@ -145,3 +145,157 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   from a completely different, never-Claude-touched macOS user account or
   machine, (c) investigate whether Apple's a fix ships in a macOS point
   update.
+
+## 2026-09-03 — Phase 1 (partial)
+
+### Supabase CLI version
+- Installed via `brew tap supabase/tap && brew install supabase/tap/supabase`.
+- Version: **2.116.0**.
+
+### Migrations written without a live project
+- Wrote all ten migration files (`0001_extensions.sql` through
+  `0010_app_releases.sql`) verbatim from spec §6–§8 into
+  `supabase/migrations/`, and ran `supabase init` at the repo root
+  (created `supabase/config.toml`, `supabase/.gitignore`).
+- These have **not** been applied anywhere yet (`supabase db push` needs
+  `supabase link`, which needs a project ref, which needs T-1.1). No
+  Docker-based local stack (`supabase db start`) was attempted this
+  session either, so the SQL is unexecuted and unverified beyond visual
+  correctness against the spec.
+- T-1.1 (create the actual Supabase project at supabase.com, in
+  `ap-south-1`) and the rest of T-1.7 (creating the household row and the
+  5 auth user accounts via the dashboard) require the admin's own
+  Supabase account and were left for the user to do, or to hand
+  credentials back for. `config/example.json` (placeholder, committed)
+  was created; `config/dev.json` (real credentials, gitignored per
+  existing `.gitignore` rule) was not, since no real credentials exist
+  yet.
+- T-1.8 (RLS verification checklist) is consequently also blocked on
+  T-1.1.
+
+## 2026-09-03 — Phase 1 (continued): live project created, schema pushed
+
+### Supabase project created
+- User created the Supabase account and project themselves (account
+  creation and password entry are actions this agent does not perform).
+  Org "Panicker Family" (free plan), project `kharcha`, region **South
+  Asia (Mumbai) / `ap-south-1`** per spec §5.1. Project ref
+  `jqorwgiowfxxgjvayznj`.
+- This project was created under Supabase's newer API key system
+  (publishable/secret keys, format `sb_publishable_...` /
+  `sb_secret_...`) rather than the legacy JWT `anon`/`service_role` keys
+  the spec's §5.2/§5.6 examples show. The publishable key is
+  functionally the same thing the spec means by "anon key" — the
+  dashboard itself labels it "safe to use in a browser if RLS is
+  enabled" / "safe to share publicly" — so it was used as-is for
+  `SUPABASE_ANON_KEY` in `config/dev.json`. `supabase_flutter ^2.17.2`
+  (already pinned in `pubspec.yaml`) accepts this key format directly.
+
+### `supabase login` doesn't work in an agent/non-TTY shell
+- `supabase login` (no flags) fails with `LegacyLoginMissingTokenError:
+  Cannot use automatic login flow inside non-TTY environments` when run
+  from this session's Bash tool — there's no way to complete the
+  browser-based OAuth device flow from a non-interactive shell.
+- Worked around by having the user generate a personal access token
+  from https://supabase.com/dashboard/account/tokens and run
+  `export SUPABASE_ACCESS_TOKEN=...` themselves, in their own terminal,
+  followed by `supabase link --project-ref jqorwgiowfxxgjvayznj` and
+  later `supabase db push`. The token was deliberately never pasted into
+  the chat/agent session — env vars set in the user's terminal don't
+  carry over to this agent's separate Bash tool processes anyway, so
+  each CLI command that needed the token had to be run by the user
+  directly.
+
+### Bug in spec §7 / §6.8: `app_releases` RLS enabled before the table exists
+- `0006_rls.sql`, copied verbatim from spec §7, includes
+  `alter table public.app_releases enable row level security;` and a
+  `rel_select` policy on `app_releases`. But `app_releases` is only
+  created in `0010_app_releases.sql` (spec §6.8) — migration files run
+  in filename order, so `0006` runs before `0010` and `supabase db push`
+  failed with `relation "public.app_releases" does not exist`
+  (SQLSTATE 42P01) at that statement.
+- Fix: moved the `app_releases` RLS-enable line and the `rel_select`
+  policy out of `0006_rls.sql` and into `0010_app_releases.sql`,
+  immediately after the `create table` statement. This is the simplest
+  fix that preserves every other migration's content and ordering
+  exactly as specified. After the fix, `supabase db push` completed
+  successfully for all 10 migrations (migrations `0001`–`0005` had
+  already been applied and were left untouched by the CLI; `0006`
+  re-ran cleanly since the CLI rolls back a failed migration file as a
+  single transaction).
+- Verified live in the dashboard: all 10 tables + 4 reporting views
+  present in Table Editor; the seed household row, 20 categories, and 6
+  payment methods are present and linked to
+  `11111111-1111-1111-1111-111111111111`.
+
+## 2026-09-04 — Phase 2: core scaffold & local database
+
+### Drift row class / domain model name collision (T-2.7)
+- Drift's default data-class naming singularises the table class name
+  (`Expenses` → `Expense`, `Categories` → `Category`, etc. — see
+  `dataClassNameForClassName` in `drift_dev`). Every one of those generated
+  names is identical to the corresponding freezed domain model name
+  (`domain/models/expense.dart`'s `Expense`, etc.), since both were named
+  after the same DB entity.
+- This is only a problem where a single file needs both types at once —
+  the mapper files (`data/local/mappers/*.dart`). Resolved by importing the
+  domain model file with an `as domain` prefix in every mapper
+  (`import '.../domain/models/expense.dart' as domain;`) and referencing
+  the Drift-generated row type unprefixed. `SyncMeta` (the one table whose
+  class name isn't a plural) needed no such handling — Drift's fallback
+  naming appends `Data` for non-plural table names, so its row class is
+  `SyncMetaData`, not `SyncMeta`.
+- Elsewhere (routing, providers, screens) nothing yet imports both a Drift
+  row type and a same-named domain model in one file, so this only matters
+  going forward for repositories (Phase 5+) — apply the same `as domain`
+  convention there.
+
+### `AppTime` uses a fixed +5:30 offset, not the `timezone` package (T-2.3)
+- India has no DST, so IST is always exactly UTC+5:30. `core/time/app_time.dart`
+  hardcodes that offset rather than depending on `package:timezone`'s tz
+  database, which spec §9.3 lists as a dependency for a different purpose
+  (Phase 13's `flutter_local_notifications` scheduling, which genuinely
+  needs `TZDateTime`). Keeps Phase 2's pure-Dart core free of any
+  asset-loading/init step.
+- `calendarDate()` mirrors the DB trigger `public.set_ist_date()` from
+  `0005_functions_triggers.sql` exactly (convert to IST, take the date),
+  so client-computed `spentOn`/`receivedOn` values will always agree with
+  what the server trigger computes for the same instant.
+
+### Placeholder screens share one `PlaceholderScreen` widget (T-2.9)
+- Spec §9.2's folder structure implies one screen file per route (~19
+  routes across `features/*/screens/`). Rather than duplicating a Scaffold
+  body 19 times, every placeholder screen is a few-line wrapper around a
+  single shared `features/shell/widgets/placeholder_screen.dart` widget.
+  Each later phase replaces one wrapper's body with the real screen — the
+  file locations already match §9.2, so nothing needs to move.
+- The router boots straight to `/` (dashboard) instead of `/splash`, since
+  splash's real job — deciding the auth redirect — is explicitly T-3.4
+  (Phase 3). Gate 2 only requires booting to a placeholder dashboard;
+  `/splash` and `/login` are wired and reachable but not yet the entry
+  point.
+
+### Riverpod 3.4 / freezed 4.0 / drift 2.34 API notes (pinned versions)
+- Riverpod 3's codegen uses a single generic `Ref` type for every
+  `@riverpod` function/class (imported from `riverpod_annotation`), not
+  the old per-provider `FooRef` typedefs from Riverpod 2.
+- Freezed 4.0 added a "primary constructor" style but the classic
+  `factory Foo(...) = _Foo;` + `with _$Foo` style (used throughout
+  `domain/models/`) still works unchanged and was kept for familiarity.
+- `go_router` 18's `StatefulShellRoute.indexedStack` API (used for the
+  4-tab bottom nav in `routing/app_router.dart`) is unchanged from the
+  pattern in go_router's own examples.
+
+### Gate 2 verification
+- `fvm flutter analyze --fatal-infos`: clean.
+- `fvm flutter test`: 44 tests green (money parsing/formatting incl. 1
+  lakh/1 crore/rounding; the 23:55-on-the-30th IST boundary case;
+  ErrorMapper classification; in-memory Drift DAO CRUD + soft-delete
+  ordering; 9 domain-model JSON round-trips; the app-boots-to-dashboard
+  widget test).
+- Also run live on the `kharcha_test` Android emulator (API 34) via
+  `fvm flutter run --dart-define-from-file=config/dev.json`: builds,
+  installs, boots straight to the placeholder Dashboard with a working
+  4-tab bottom nav and FAB, no crashes. First build was slow (~2 min)
+  because `sqlite3_flutter_libs` native-compiles for 3 ABIs on a clean
+  checkout — expected, not a regression.
