@@ -299,3 +299,54 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   4-tab bottom nav and FAB, no crashes. First build was slow (~2 min)
   because `sqlite3_flutter_libs` native-compiles for 3 ABIs on a clean
   checkout — expected, not a regression.
+
+## 2026-09-04 — T-1.7 / T-1.8: household users and RLS verification
+
+### 4 auth users instead of the spec's 5
+- Spec §5.5 assumes 5 family members. Per the user, only 4 accounts are
+  needed right now: Rupesh, Tanish, Trupti (all `role='member'`) and
+  Vineet (`role='admin'`). `handle_new_user` (0002_core_tables.sql)
+  auto-created each `profiles` row on user creation, linked to the
+  household via "pick the first (and only) household"; `display_name`
+  and `role` were then set per-row via the SQL editor. A 5th member can
+  be added later the same way — nothing in the schema assumes exactly 5.
+- Sign-ups disabled (Authentication → Providers → Email → "Allow new
+  users to sign up" off, saved successfully), locking the household to
+  these 4 accounts per §5.5 step 5 / the R2 risk note in §17.
+
+### T-1.8 — RLS verification checklist (§7.1), executed via SQL editor impersonation
+- No UI/app exists yet to exercise RLS end-to-end (Phase 3+ auth/CRUD
+  not built), so the checklist was run directly in the Supabase SQL
+  editor using session-local JWT-claim impersonation rather than the
+  dashboard's user-picker (simpler to script, same effect):
+  ```sql
+  begin;
+  select set_config('request.jwt.claims', json_build_object('sub','<uid>','role','authenticated')::text, true);
+  set local role authenticated;
+  -- test query
+  rollback;
+  ```
+  Every check ran inside `begin; ... rollback;` so no test — including
+  the deliberately-attempted illegal writes — left any lasting change.
+  Two throwaway expense rows (owned by Rupesh and Tanish) were inserted
+  as the unrestricted `postgres` role beforehand to have real data to
+  test against, and deleted again afterward once all 8 checks passed.
+- **All 8 checks passed, no policy changes needed:**
+  - RLS-1: Rupesh (member) selects all household expenses → saw both
+    rows (his + Tanish's). Pass.
+  - RLS-2: Rupesh updates Tanish's expense → 0 rows changed (verified by
+    re-selecting the row's value inside the same transaction). Pass.
+  - RLS-3: Rupesh deletes Tanish's expense → row still present. Pass.
+  - RLS-4: Rupesh inserts an expense with `user_id` set to Tanish →
+    `ERROR 42501: new row violates row-level security policy for table
+    "expenses"`. Pass.
+  - RLS-5: Rupesh inserts a category (admin-only per `cat_write`) →
+    `ERROR 42501: ... "categories"`. Pass.
+  - RLS-6: Vineet (admin) updates Rupesh's expense → succeeded. Pass.
+  - RLS-7: anon role selects `expenses` → 0 rows (no policy grants `anon`
+    access at all; only `to authenticated` policies exist). Pass.
+  - RLS-8: Rupesh selects `expenses` filtered by a forged/other
+    `household_id` → 0 rows (RLS's `household_id = current_household_id()`
+    clause ignores what the query asks for). Pass.
+- Conclusion: the `0006_rls.sql` policies as pushed match the spec's
+  intent exactly — no further RLS work needed before Phase 3.
