@@ -19,6 +19,7 @@ import '../../../domain/models/expense_filter.dart';
 import '../../../domain/models/payment_method.dart' as domain;
 import '../../../domain/models/profile.dart' as domain;
 import '../../../routing/routes.dart';
+import '../controllers/expense_list_preset_filter_controller.dart';
 import '../widgets/expense_filter_sheet.dart';
 
 /// Expense List (spec §11.3, T-5.7/T-5.8): reverse-chronological, grouped by
@@ -50,6 +51,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Dashboard "tap a member" handoff (spec §11.4 card 3): apply it once,
+    // then clear it so it doesn't reapply on a later, unrelated tab visit.
+    final preset = ref.read(expenseListPresetFilterControllerProvider);
+    if (preset != null) {
+      _filter = preset;
+      ref.read(expenseListPresetFilterControllerProvider.notifier).clear();
+    }
   }
 
   @override
@@ -111,7 +119,11 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(expenseRepositoryProvider);
-    final currentUserId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+    final currentUserId = ref
+        .watch(supabaseClientProvider)
+        .auth
+        .currentUser
+        ?.id;
     final isAdmin = ref.watch(currentProfileProvider).value?.isAdmin ?? false;
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final methods = ref.watch(paymentMethodsProvider).value ?? const [];
@@ -274,9 +286,7 @@ class _DateGroupSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dayTotal = Money(
-      expenses.fold(0, (sum, e) => sum + e.amountPaise),
-    );
+    final dayTotal = Money(expenses.fold(0, (sum, e) => sum + e.amountPaise));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -350,7 +360,9 @@ class _ExpenseRow extends ConsumerWidget {
         child: const Icon(Icons.copy_outlined),
       ),
       secondaryBackground: Container(
-        color: canEdit ? Theme.of(context).colorScheme.errorContainer : Colors.grey,
+        color: canEdit
+            ? Theme.of(context).colorScheme.errorContainer
+            : Colors.grey,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: const Icon(Icons.delete_outline),
@@ -379,7 +391,8 @@ class _ExpenseRow extends ConsumerWidget {
           ),
         );
       },
-      onDismissed: (_) => ref.read(expenseRepositoryProvider).delete(expense.id),
+      onDismissed: (_) =>
+          ref.read(expenseRepositoryProvider).delete(expense.id),
       child: ListTile(
         onTap: () => context.push(AppRoutes.expenseDetailPath(expense.id)),
         leading: CircleAvatar(
@@ -398,7 +411,8 @@ class _ExpenseRow extends ConsumerWidget {
               Text(payer!.displayName),
               const SizedBox(width: 8),
             ],
-            if (method != null) Icon(iconForPaymentMethodType(method!.type), size: 14),
+            if (method != null)
+              Icon(iconForPaymentMethodType(method!.type), size: 14),
           ],
         ),
         trailing: Row(

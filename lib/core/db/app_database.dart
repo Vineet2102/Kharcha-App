@@ -16,6 +16,7 @@ import 'daos/outbox_dao.dart';
 import 'daos/payment_method_dao.dart';
 import 'daos/profile_dao.dart';
 import 'daos/recurring_dao.dart';
+import 'daos/report_dao.dart';
 import 'daos/sync_meta_dao.dart';
 import 'tables/attachments_table.dart';
 import 'tables/budgets_table.dart';
@@ -60,6 +61,7 @@ part 'app_database.g.dart';
     SyncMetaDao,
     ProfileDao,
     HouseholdDao,
+    ReportDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
