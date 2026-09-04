@@ -350,3 +350,62 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
     clause ignores what the query asks for). Pass.
 - Conclusion: the `0006_rls.sql` policies as pushed match the spec's
   intent exactly — no further RLS work needed before Phase 3.
+
+## 2026-09-04 — Phase 3 (Authentication)
+
+### Login error copy corrected to match spec verbatim
+- T-2.4's `ErrorMapper` mapped invalid-credentials `AuthException`s to
+  "Incorrect email or password." — close to, but not, the string spec
+  §11.1 actually specifies: "Email or password is incorrect." T-3.3's
+  acceptance ("wrong password shows the specified message") makes this
+  wording load-bearing for the first time, so it was corrected to match
+  the spec exactly. The one existing test asserting the old string
+  (`error_mapper_test.dart`) was updated alongside it.
+
+### `supabase_flutter` key parameter renamed
+- `Supabase.initialize(..., anonKey: ...)` is deprecated in
+  `supabase_flutter` 2.17.2 in favour of `publishableKey:` (the project
+  already uses Supabase's newer `sb_publishable_...` key format, per
+  T-1.1). Switched to `publishableKey:` in `main()`; the `AppConfig`
+  field and the `SUPABASE_ANON_KEY` dart-define name were left alone —
+  purely a call-site rename, not a config format change.
+
+### Bug found & fixed — sign-out wipe silently incomplete (auto-dispose race)
+- First live pass of T-3.6 (Settings → Sign out) left the `profiles`
+  table with 1 row after every other table was correctly emptied by
+  `AppDatabase.wipeAll()`. Root cause, found via temporary debug logging
+  plus reading `flutter run`'s console: `SignOutController` (and
+  `LoginController`, same shape) were plain `@riverpod` — Riverpod
+  **auto-dispose** providers. `AuthRepository.signOut()` flips the
+  session to null as soon as it runs, which fires the T-3.4 router
+  redirect immediately and unmounts the Settings screen the controller
+  was read from. With no active `ref.watch` keeping it alive, Riverpod
+  tore the provider down mid-flight, and the console showed: `Cannot use
+  the Ref of signOutControllerProvider after it has been disposed.` This
+  silently skipped (or ran a possibly-incomplete) `wipeAll()` — thrown
+  into an unawaited zone, so nothing surfaced in the UI. Fixed by marking
+  both `LoginController` and `SignOutController` `@Riverpod(keepAlive:
+  true)`, matching every other cross-cutting provider in the app. Verified
+  by re-running the full sign-in/sign-out cycle live and pulling
+  `kharcha.sqlite` off the device (`adb exec-out run-as ... cat`) to
+  confirm all 11 tables read 0 rows afterward.
+- A second, narrower race was fixed defensively at the same time:
+  `ProfileRepository.refresh()`'s background Supabase fetch (kicked off
+  fire-and-forget by `currentProfileProvider`) can still be in flight at
+  sign-out; without a guard, its response could land after `wipeAll()`
+  and resurrect the profile row a second time. `refresh()` now re-checks
+  `client.auth.currentSession` immediately before writing and aborts if
+  the session has changed underneath it. This alone did not fix the bug
+  above (the auto-dispose crash pre-empted it), but it closes a real
+  independent window and was kept.
+- Diagnostic method worth repeating: `adb exec-out run-as
+  com.panicker.kharcha cat <path>` is the reliable way to pull a debug
+  app's private SQLite file for direct inspection (`adb shell run-as ...
+  cat > file` on the host side silently produces a 0-byte file — the
+  shell redirection happens on the wrong side of the `adb shell`
+  boundary; `exec-out` is required for binary-safe pulls). Also:
+  automated `adb shell input tap`/`swipe` did not reach this emulator
+  from this sandboxed environment at all (focus/window checks looked
+  normal; taps simply had no effect, even on the notification shade) —
+  manual taps from the user were used for every interactive step in this
+  phase's live verification instead.

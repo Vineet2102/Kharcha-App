@@ -36,7 +36,7 @@ void main() {
       const error = AuthException('Invalid login credentials');
       final mapped = ErrorMapper.map(error);
       expect(mapped, isA<AuthFailure>());
-      expect(mapped.message, 'Incorrect email or password.');
+      expect(mapped.message, 'Email or password is incorrect.');
     });
 
     test('maps an unrecognised object to UnknownFailure', () {

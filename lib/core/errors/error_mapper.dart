@@ -23,7 +23,7 @@ class ErrorMapper {
   static String _authMessage(AuthException e) {
     final msg = e.message.toLowerCase();
     if (msg.contains('invalid login credentials')) {
-      return 'Incorrect email or password.';
+      return 'Email or password is incorrect.';
     }
     if (msg.contains('email not confirmed')) {
       return 'This account has not been confirmed yet. Ask the admin to check it.';

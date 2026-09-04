@@ -21,20 +21,37 @@ import '../features/settings/screens/diagnostics_screen.dart';
 import '../features/settings/screens/members_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/shell/app_shell.dart';
+import '../data/remote/supabase_client_provider.dart';
+import 'go_router_refresh_stream.dart';
 import 'routes.dart';
 
 part 'app_router.g.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
-/// The route map from spec §10.1. Auth redirect logic (splash routing,
-/// signed-out → /login) lands in Phase 3 (T-3.4) — for now the app boots
-/// straight to the placeholder dashboard so Gate 2 can be verified.
+/// The route map from spec §10.1, plus the auth redirect (T-3.4): a
+/// signed-out member always lands on `/login`; a signed-in member is bounced
+/// off `/login`/`/splash` straight to the dashboard. `redirect` re-runs
+/// whenever `refreshListenable` fires, i.e. on every Supabase auth event.
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
+  final client = ref.watch(supabaseClientProvider);
+  final refreshStream = GoRouterRefreshStream(client.auth.onAuthStateChange);
+  ref.onDispose(refreshStream.dispose);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.dashboard,
+    initialLocation: AppRoutes.splash,
+    refreshListenable: refreshStream,
+    redirect: (context, state) {
+      final signedIn = client.auth.currentSession != null;
+      final loggingIn = state.matchedLocation == AppRoutes.login;
+      final atSplash = state.matchedLocation == AppRoutes.splash;
+
+      if (!signedIn) return loggingIn ? null : AppRoutes.login;
+      if (loggingIn || atSplash) return AppRoutes.dashboard;
+      return null;
+    },
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
       GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),

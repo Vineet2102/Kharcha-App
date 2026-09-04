@@ -13,6 +13,7 @@ import 'daos/expense_dao.dart';
 import 'daos/income_dao.dart';
 import 'daos/outbox_dao.dart';
 import 'daos/payment_method_dao.dart';
+import 'daos/profile_dao.dart';
 import 'daos/recurring_dao.dart';
 import 'daos/sync_meta_dao.dart';
 import 'tables/attachments_table.dart';
@@ -56,6 +57,7 @@ part 'app_database.g.dart';
     AttachmentDao,
     OutboxDao,
     SyncMetaDao,
+    ProfileDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -70,6 +72,17 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
       );
+
+  /// Deletes every row from every table. Used on sign-out (spec §11.1,
+  /// T-3.6) so a shared phone never keeps another member's data around
+  /// after they log out.
+  Future<void> wipeAll() async {
+    await transaction(() async {
+      for (final table in allTables) {
+        await delete(table).go();
+      }
+    });
+  }
 }
 
 LazyDatabase _openConnection() {
