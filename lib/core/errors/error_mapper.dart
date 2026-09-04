@@ -13,7 +13,9 @@ class ErrorMapper {
 
   static Failure map(Object error) {
     if (error is Failure) return error;
-    if (error is SocketException || error is TimeoutException) return const NetworkFailure();
+    if (error is SocketException || error is TimeoutException) {
+      return const NetworkFailure();
+    }
     if (error is AuthException) return AuthFailure(_authMessage(error));
     if (error is PostgrestException) return _postgrestFailure(error);
     if (error is StorageException) return const StorageFailure();
@@ -38,8 +40,12 @@ class ErrorMapper {
     // Postgres error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
     final code = e.code;
     final message = e.message.toLowerCase();
-    if (code == '42501' || message.contains('row-level security') || message.contains('permission denied')) {
-      return const PermissionFailure('You can only edit expenses you added yourself.');
+    if (code == '42501' ||
+        message.contains('row-level security') ||
+        message.contains('permission denied')) {
+      return const PermissionFailure(
+        'You can only edit expenses you added yourself.',
+      );
     }
     if (code == '23505') {
       return const ValidationFailure('That name is already in use.');

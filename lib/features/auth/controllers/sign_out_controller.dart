@@ -11,6 +11,7 @@ import '../../../core/errors/failure.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/result/result.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/sync/sync_engine.dart';
 
 part 'sign_out_controller.g.dart';
 
@@ -33,6 +34,11 @@ class SignOutController extends _$SignOutController {
 
   Future<Result<void, Failure>> signOut() async {
     state = const AsyncLoading();
+    // Stop the sync engine first: it makes any in-flight push/pull abort at
+    // its next checkpoint, so it can't write to the DB after `wipeAll()`
+    // clears it — the same class of race `ProfileRepository.refresh()`
+    // already guards against (see docs/DECISIONS.md).
+    ref.read(syncEngineProvider).stop();
     final result = await ref.read(authRepositoryProvider).signOut();
     await ref.read(appDatabaseProvider).wipeAll();
     await _clearReceiptCache();
@@ -43,12 +49,18 @@ class SignOutController extends _$SignOutController {
   Future<void> _clearReceiptCache() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory(p.join(dir.path, AppConstants.receiptsCacheDir));
+      final cacheDir = Directory(
+        p.join(dir.path, AppConstants.receiptsCacheDir),
+      );
       if (await cacheDir.exists()) {
         await cacheDir.delete(recursive: true);
       }
     } catch (error, stackTrace) {
-      AppLogger.instance.warn('Failed to clear receipt cache on sign-out', error, stackTrace);
+      AppLogger.instance.warn(
+        'Failed to clear receipt cache on sign-out',
+        error,
+        stackTrace,
+      );
     }
   }
 }

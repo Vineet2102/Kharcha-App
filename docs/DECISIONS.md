@@ -409,3 +409,103 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   normal; taps simply had no effect, even on the notification shade) —
   manual taps from the user were used for every interactive step in this
   phase's live verification instead.
+
+## 2026-09-04 — Phase 4 (Sync engine)
+
+### Consolidated file layout vs. spec §9.2's literal per-entity file list
+- Spec §9.2 names one remote-data-source file per entity
+  (`expense_remote_ds.dart`, `income_remote_ds.dart`, ...). All 9 tables'
+  remote reads/writes (select-since-cursor, upsert, soft-delete) are
+  identical in shape, parameterised only by table name — so one shared
+  `TableRemoteDataSource` (`data/remote/table_remote_data_source.dart`)
+  implements the logic once, and the 9 named files (kept, for the DI/import
+  ergonomics the spec's layout implies) are thin one-line subclasses.
+- Similarly, the 9 `EntitySyncAdapter`s (the layer that bridges remote JSON
+  to typed Drift rows — conflict resolution, tombstones, dispatch) live
+  together in one file, `data/sync/entity_sync_adapters.dart`, rather than
+  9 files — each adapter body is genuinely mechanical (delegates to the
+  already-existing `domain.Model.fromJson()`/`.toCompanion()` mappers from
+  Phase 2 plus the matching DAO), so nothing is gained by fragmenting them
+  and side-by-side review is easier in one file. Per §0 rule 4 (simplest
+  option that satisfies acceptance criteria, recorded here).
+
+### `households` / `profiles` are pull-only, no-tombstone special cases
+- Neither table has a `deleted_at` column server-side, and neither has any
+  write UI planned before Phase 14 (Settings/admin) — so their adapters
+  have `supportsPush = false` and throw `UnsupportedError` if the outbox
+  ever somehow contains one (nothing currently enqueues either).
+- `profiles` pulls **every** household member, not just the signed-in
+  one — needed groundwork for Phase 6's per-member dashboard breakdown.
+  The existing `ProfileRepository.refresh()` (T-3.5) is untouched; this
+  pull is a superset and both paths upsert idempotently.
+- `households` skips the since-cursor paging machinery entirely (a plain
+  fetch-by-id) — there is exactly one row, ever, per §1.4.
+
+### `OutboxEntries.status` column added — schema v1 → v2
+- The outbox needed a way to distinguish "still eligible for auto-retry"
+  from "permanently failed" (RLS denial, constraint violation — spec
+  §9.6). Without it, `dueEntries()` would keep re-selecting a
+  permanently-failed row forever (`next_attempt_at` stays null). Added
+  `status` (`'pending' | 'failed'`, default `'pending'`), bumped
+  `AppDatabase.schemaVersion` to 2 with an `addColumn` migration step.
+  Safe — dev-only local DBs, no data loss.
+
+### Failure classification reuses `ErrorMapper`, not a new HTTP-status table
+- Spec §9.6 describes permanent-vs-transient by HTTP status (4xx vs
+  network/5xx/429). `supabase-dart`'s `PostgrestException` doesn't reliably
+  expose an HTTP status, but the existing `ErrorMapper` (T-2.4) already
+  classifies the exact same distinction by Postgres error code
+  (`PermissionFailure` for RLS denials, `ValidationFailure` for constraint
+  violations) for the UI's error messages. `OutboxProcessor` reuses that
+  mapping directly (`PermissionFailure`/`ValidationFailure` ⇒ permanent,
+  everything else ⇒ transient with backoff) rather than inventing a second,
+  parallel classification — one source of truth for "is this the user's
+  fault or the network's fault."
+
+### Bug found & fixed — Drift `DateTime` columns decode as local-flagged, not UTC
+- Found while writing `pull_service_test.dart`: a `DateTime.utc(...)` value
+  written to a Drift `dateTime()` column and read back compares **unequal**
+  via `==` to the original — Drift's sqlite backend stores the correct
+  absolute instant (confirmed: `read.toUtc() == original` always holds,
+  and `.isAfter()`/`.isBefore()`/`.compareTo()` are unaffected since they
+  compare the instant, not the flag) but decodes into a DateTime object
+  flagged `isUtc: false`, and Dart's `DateTime.==` **is** sensitive to that
+  flag even when the instant is identical.
+- This was a real, not just a test, bug: `PullService._pullEntity()`
+  derives its since-cursor from `SyncMeta.lastPulledAt` (read from Drift)
+  and passes it to `.toIso8601String()` for the Postgrest query — a
+  local-flagged DateTime serialises **without** a `Z`/offset suffix, which
+  is ambiguous to interpret server-side. On a device actually running in
+  IST (every Kharcha user, by design — §3), this would have silently
+  shifted every pull's cursor by 5:30, at best re-fetching a wider window
+  than necessary and at worst missing rows depending on how Postgrest
+  resolves an unqualified timestamp string.
+- Fixed by normalising with `.toUtc()` immediately after reading
+  `lastPulledAt` from Drift, before using it (`pull_service.dart`). The
+  D12 conflict check in `entity_sync_adapters.dart` needed no equivalent
+  fix — it only ever uses `.isAfter()`, which is instant-correct regardless
+  of the flag. Worth remembering for any future code that reads a Drift
+  `DateTime` column and serialises it (rather than only comparing it).
+
+### Bug found & fixed — single-flight lock set after an `await`
+- Found via `sync_engine_test.dart`'s rapid-double-trigger test: the
+  original `SyncEngine.sync()` checked `_syncing` synchronously but only
+  *set* `_syncing = true` after `await connectivity.isOnline` — so two
+  calls fired back-to-back both passed the guard before either reached the
+  line that sets it, and both ran a full push/pull cycle. Fixed by moving
+  `_syncing = true` to immediately after the synchronous guard checks, with
+  the connectivity check moved inside the `try`/`finally`.
+
+### Live verification (partial Gate 4 — see PROGRESS.md)
+- Ran live on the `kharcha_test` emulator via
+  `fvm flutter run --dart-define-from-file=config/dev.json`. User signed in
+  with a real account. Pulled `kharcha.sqlite` off the device
+  (`adb exec-out run-as ... cat`, same technique as Gate 3) and confirmed,
+  against the live Supabase project: all 20 categories, all 6 payment
+  methods, all 4 profiles, and the 1 household row present locally;
+  `sync_meta` shows a populated `last_pulled_at`/`last_success_at` for
+  every one of the 9 entities (including the empty ones — expense, income,
+  budget, recurring_rule, attachment — proving `pullAll()` ran the full
+  entity list, not just the ones with seed data); `outbox_entries` empty;
+  no sync-related errors in the app process's logcat; sync banner rendered
+  nothing (correct idle-and-clean state).

@@ -10,6 +10,7 @@ import 'daos/attachment_dao.dart';
 import 'daos/budget_dao.dart';
 import 'daos/category_dao.dart';
 import 'daos/expense_dao.dart';
+import 'daos/household_dao.dart';
 import 'daos/income_dao.dart';
 import 'daos/outbox_dao.dart';
 import 'daos/payment_method_dao.dart';
@@ -58,6 +59,7 @@ part 'app_database.g.dart';
     OutboxDao,
     SyncMetaDao,
     ProfileDao,
+    HouseholdDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -66,12 +68,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
-      );
+    onCreate: (m) => m.createAll(),
+    // v1 -> v2 (Phase 4, T-4.3): OutboxEntries.status distinguishes a
+    // permanently-failed entry from one still waiting on backoff.
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(outboxEntries, outboxEntries.status);
+      }
+    },
+  );
 
   /// Deletes every row from every table. Used on sign-out (spec §11.1,
   /// T-3.6) so a shared phone never keeps another member's data around

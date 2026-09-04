@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'widgets/sync_banner.dart';
+
 /// Bottom-nav shell for the 4 main tabs (spec §10.2). A centre FAB on
 /// Dashboard/Expenses opens Add Expense; long-press opens Add Income.
 class AppShell extends StatelessWidget {
@@ -9,13 +11,23 @@ class AppShell extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
 
   static const _labels = ['Dashboard', 'Expenses', 'Analytics', 'Settings'];
-  static const _icons = [Icons.dashboard_outlined, Icons.receipt_long_outlined, Icons.bar_chart_outlined, Icons.settings_outlined];
+  static const _icons = [
+    Icons.dashboard_outlined,
+    Icons.receipt_long_outlined,
+    Icons.bar_chart_outlined,
+    Icons.settings_outlined,
+  ];
 
   @override
   Widget build(BuildContext context) {
     final showFab = navigationShell.currentIndex <= 1;
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const SyncBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       floatingActionButton: showFab
           ? GestureDetector(
               onLongPress: () => context.push('/income/new'),

@@ -9,7 +9,17 @@ class AppConfig {
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   static const appEnv = String.fromEnvironment('APP_ENV', defaultValue: 'dev');
 
-  static bool get isValid => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+  /// Feature flag for the Realtime listener (spec §9.6 T-4.8). Realtime is
+  /// always an optimisation on top of the poll-based sync engine, never a
+  /// correctness requirement — disabling it must leave the app fully
+  /// correct, just slower to notice a change made on another device.
+  static const realtimeEnabled = bool.fromEnvironment(
+    'REALTIME_ENABLED',
+    defaultValue: true,
+  );
+
+  static bool get isValid =>
+      supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
   static void assertValid() {
     assert(

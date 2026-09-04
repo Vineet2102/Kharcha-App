@@ -30,7 +30,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    await ref.read(loginControllerProvider.notifier).signIn(
+    await ref
+        .read(loginControllerProvider.notifier)
+        .signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
@@ -46,15 +48,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       return;
     }
-    final result = await ref.read(loginControllerProvider.notifier).sendPasswordReset(email);
+    final result = await ref
+        .read(loginControllerProvider.notifier)
+        .sendPasswordReset(email);
     if (!mounted) return;
     result.fold(
-      (_) => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Check your email')),
-      ),
-      (failure) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(failure.message)),
-      ),
+      (_) =>
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Check your email'))),
+      (failure) =>
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(failure.message))),
     );
   }
 
@@ -77,7 +81,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Kharcha', style: Theme.of(context).textTheme.headlineMedium, textAlign: TextAlign.center),
+                    Text(
+                      'Kharcha',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 32),
                     TextFormField(
                       controller: _emailController,
@@ -88,7 +96,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (value) {
                         final trimmed = value?.trim() ?? '';
                         if (trimmed.isEmpty) return 'Enter your email.';
-                        if (!_emailRegex.hasMatch(trimmed)) return 'Enter a valid email.';
+                        if (!_emailRegex.hasMatch(trimmed)) {
+                          return 'Enter a valid email.';
+                        }
                         return null;
                       },
                     ),
@@ -102,17 +112,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
                         ),
                       ),
-                      validator: (value) => (value == null || value.isEmpty) ? 'Enter your password.' : null,
+                      validator: (value) => (value == null || value.isEmpty)
+                          ? 'Enter your password.'
+                          : null,
                     ),
                     if (error != null) ...[
                       const SizedBox(height: 16),
                       Text(
                         error.message,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 24),
