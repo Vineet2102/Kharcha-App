@@ -28,7 +28,10 @@ void main() {
     });
 
     test('maps an unrecognised Postgrest error code to UnknownFailure', () {
-      const error = PostgrestException(message: 'something else', code: '99999');
+      const error = PostgrestException(
+        message: 'something else',
+        code: '99999',
+      );
       expect(ErrorMapper.map(error), isA<UnknownFailure>());
     });
 

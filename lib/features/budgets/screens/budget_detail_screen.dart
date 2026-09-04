@@ -11,7 +11,7 @@ class BudgetDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PlaceholderScreen(
-        title: id == null ? 'Add budget' : 'Edit budget',
-        subtitle: id,
-      );
+    title: id == null ? 'Add budget' : 'Edit budget',
+    subtitle: id,
+  );
 }

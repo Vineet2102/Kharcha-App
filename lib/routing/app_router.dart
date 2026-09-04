@@ -53,22 +53,49 @@ GoRouter appRouter(Ref ref) {
       return null;
     },
     routes: [
-      GoRoute(path: AppRoutes.splash, builder: (context, state) => const SplashScreen()),
-      GoRoute(path: AppRoutes.login, builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: AppRoutes.splash,
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (context, state) => const LoginScreen(),
+      ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => AppShell(navigationShell: navigationShell),
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.dashboard, builder: (context, state) => const DashboardScreen())],
+            routes: [
+              GoRoute(
+                path: AppRoutes.dashboard,
+                builder: (context, state) => const DashboardScreen(),
+              ),
+            ],
           ),
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.expenses, builder: (context, state) => const ExpenseListScreen())],
+            routes: [
+              GoRoute(
+                path: AppRoutes.expenses,
+                builder: (context, state) => const ExpenseListScreen(),
+              ),
+            ],
           ),
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.analytics, builder: (context, state) => const AnalyticsScreen())],
+            routes: [
+              GoRoute(
+                path: AppRoutes.analytics,
+                builder: (context, state) => const AnalyticsScreen(),
+              ),
+            ],
           ),
           StatefulShellBranch(
-            routes: [GoRoute(path: AppRoutes.settings, builder: (context, state) => const SettingsScreen())],
+            routes: [
+              GoRoute(
+                path: AppRoutes.settings,
+                builder: (context, state) => const SettingsScreen(),
+              ),
+            ],
           ),
         ],
       ),
@@ -80,7 +107,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.expenseDetail,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ExpenseDetailScreen(id: state.pathParameters['id']),
+        builder: (context, state) =>
+            ExpenseDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.incomeNew,
@@ -90,7 +118,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.incomeDetail,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => IncomeDetailScreen(id: state.pathParameters['id']),
+        builder: (context, state) =>
+            IncomeDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.budgets,
@@ -105,7 +134,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.budgetDetail,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => BudgetDetailScreen(id: state.pathParameters['id']),
+        builder: (context, state) =>
+            BudgetDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.recurring,
@@ -120,7 +150,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.recurringDetail,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => RecurringDetailScreen(id: state.pathParameters['id']),
+        builder: (context, state) =>
+            RecurringDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.categories,
@@ -145,7 +176,9 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.receiptViewer,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ReceiptViewerScreen(attachmentId: state.pathParameters['attachmentId']!),
+        builder: (context, state) => ReceiptViewerScreen(
+          attachmentId: state.pathParameters['attachmentId']!,
+        ),
       ),
       GoRoute(
         path: AppRoutes.diagnostics,

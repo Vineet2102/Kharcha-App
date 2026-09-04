@@ -52,12 +52,23 @@ class AppTime {
   }
 
   static const _monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   /// e.g. 'September 2026'.
-  static String monthLabel(DateTime periodMonth) => '${_monthNames[periodMonth.month - 1]} ${periodMonth.year}';
+  static String monthLabel(DateTime periodMonth) =>
+      '${_monthNames[periodMonth.month - 1]} ${periodMonth.year}';
 
   /// e.g. 'Sep 2026'.
   static String monthLabelShort(DateTime periodMonth) =>

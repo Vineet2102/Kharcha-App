@@ -6,34 +6,35 @@ import '../../../domain/models/recurring_rule.dart' as domain;
 
 extension RecurringRuleRowMapper on RecurringRule {
   domain.RecurringRule toDomain() => domain.RecurringRule(
-        id: id,
-        householdId: householdId,
-        userId: userId,
-        kind: TxnKind.values.byName(kind),
-        title: title,
-        amountPaise: amountPaise,
-        categoryId: categoryId,
-        paymentMethodId: paymentMethodId,
-        note: note,
-        frequency: RecurFrequency.values.byName(frequency),
-        intervalN: intervalN,
-        dayOfMonth: dayOfMonth,
-        weekday: weekday,
-        monthOfYear: monthOfYear,
-        startDate: startDate,
-        endDate: endDate,
-        nextDueDate: nextDueDate,
-        autoPost: autoPost,
-        isActive: isActive,
-        lastPostedOn: lastPostedOn,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
-        deletedAt: deletedAt,
-      );
+    id: id,
+    householdId: householdId,
+    userId: userId,
+    kind: TxnKind.values.byName(kind),
+    title: title,
+    amountPaise: amountPaise,
+    categoryId: categoryId,
+    paymentMethodId: paymentMethodId,
+    note: note,
+    frequency: RecurFrequency.values.byName(frequency),
+    intervalN: intervalN,
+    dayOfMonth: dayOfMonth,
+    weekday: weekday,
+    monthOfYear: monthOfYear,
+    startDate: startDate,
+    endDate: endDate,
+    nextDueDate: nextDueDate,
+    autoPost: autoPost,
+    isActive: isActive,
+    lastPostedOn: lastPostedOn,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    deletedAt: deletedAt,
+  );
 }
 
 extension RecurringRuleDomainMapper on domain.RecurringRule {
-  RecurringRulesCompanion toCompanion({bool dirty = false}) => RecurringRulesCompanion(
+  RecurringRulesCompanion toCompanion({bool dirty = false}) =>
+      RecurringRulesCompanion(
         id: Value(id),
         householdId: Value(householdId),
         userId: Value(userId),

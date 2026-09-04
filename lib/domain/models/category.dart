@@ -21,5 +21,6 @@ abstract class Category with _$Category {
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
   }) = _Category;
 
-  factory Category.fromJson(Map<String, Object?> json) => _$CategoryFromJson(json);
+  factory Category.fromJson(Map<String, Object?> json) =>
+      _$CategoryFromJson(json);
 }

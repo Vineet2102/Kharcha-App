@@ -51,7 +51,9 @@ extension type const Money(int paise) {
 
   static String _trim(double value) {
     final rounded = (value * 10).round() / 10;
-    return rounded == rounded.roundToDouble() ? rounded.toStringAsFixed(0) : rounded.toStringAsFixed(1);
+    return rounded == rounded.roundToDouble()
+        ? rounded.toStringAsFixed(0)
+        : rounded.toStringAsFixed(1);
   }
 
   /// Parses `1234`, `1234.5`, `1,234.50`, `1234.567` (rounded to 2dp).

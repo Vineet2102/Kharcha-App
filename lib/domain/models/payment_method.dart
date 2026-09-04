@@ -19,5 +19,6 @@ abstract class PaymentMethod with _$PaymentMethod {
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
   }) = _PaymentMethod;
 
-  factory PaymentMethod.fromJson(Map<String, Object?> json) => _$PaymentMethodFromJson(json);
+  factory PaymentMethod.fromJson(Map<String, Object?> json) =>
+      _$PaymentMethodFromJson(json);
 }

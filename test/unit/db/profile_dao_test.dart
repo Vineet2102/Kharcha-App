@@ -34,15 +34,24 @@ void main() {
     expect(row, isNull);
   });
 
-  test('watchById reflects the latest cached profile (offline-first reads)', () async {
-    final now = DateTime.utc(2026, 9, 4);
-    final stream = db.profileDao.watchById('u1');
+  test(
+    'watchById reflects the latest cached profile (offline-first reads)',
+    () async {
+      final now = DateTime.utc(2026, 9, 4);
+      final stream = db.profileDao.watchById('u1');
 
-    await db.profileDao.upsert(
-      ProfilesCompanion.insert(id: 'u1', householdId: 'h1', displayName: 'Rupesh', createdAt: now, updatedAt: now),
-    );
+      await db.profileDao.upsert(
+        ProfilesCompanion.insert(
+          id: 'u1',
+          householdId: 'h1',
+          displayName: 'Rupesh',
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
 
-    final row = await stream.firstWhere((r) => r != null);
-    expect(row!.displayName, 'Rupesh');
-  });
+      final row = await stream.firstWhere((r) => r != null);
+      expect(row!.displayName, 'Rupesh');
+    },
+  );
 }

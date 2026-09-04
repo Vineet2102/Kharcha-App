@@ -6,18 +6,24 @@ import '../tables/attachments_table.dart';
 part 'attachment_dao.g.dart';
 
 @DriftAccessor(tables: [Attachments])
-class AttachmentDao extends DatabaseAccessor<AppDatabase> with _$AttachmentDaoMixin {
+class AttachmentDao extends DatabaseAccessor<AppDatabase>
+    with _$AttachmentDaoMixin {
   AttachmentDao(super.db);
 
   Stream<List<Attachment>> watchForExpense(String expenseId) {
-    return (select(attachments)..where((t) => t.expenseId.equals(expenseId) & t.deletedAt.isNull())).watch();
+    return (select(attachments)
+          ..where((t) => t.expenseId.equals(expenseId) & t.deletedAt.isNull()))
+        .watch();
   }
 
-  Future<Attachment?> findById(String id) => (select(attachments)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<Attachment?> findById(String id) =>
+      (select(attachments)..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<void> upsert(AttachmentsCompanion entry) => into(attachments).insertOnConflictUpdate(entry);
+  Future<void> upsert(AttachmentsCompanion entry) =>
+      into(attachments).insertOnConflictUpdate(entry);
 
-  Future<void> softDelete(String id, DateTime now) => (update(attachments)..where((t) => t.id.equals(id))).write(
+  Future<void> softDelete(String id, DateTime now) =>
+      (update(attachments)..where((t) => t.id.equals(id))).write(
         AttachmentsCompanion(
           deletedAt: Value(now),
           updatedAt: Value(now),
@@ -27,9 +33,14 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase> with _$AttachmentDaoMi
         ),
       );
 
-  Future<void> markSynced(String id) => (update(attachments)..where((t) => t.id.equals(id))).write(
-        const AttachmentsCompanion(isDirty: Value(false), syncStatus: Value('synced')),
+  Future<void> markSynced(String id) =>
+      (update(attachments)..where((t) => t.id.equals(id))).write(
+        const AttachmentsCompanion(
+          isDirty: Value(false),
+          syncStatus: Value('synced'),
+        ),
       );
 
-  Future<int> hardDelete(String id) => (delete(attachments)..where((t) => t.id.equals(id))).go();
+  Future<int> hardDelete(String id) =>
+      (delete(attachments)..where((t) => t.id.equals(id))).go();
 }

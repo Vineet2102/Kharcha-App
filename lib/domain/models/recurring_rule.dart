@@ -38,5 +38,6 @@ abstract class RecurringRule with _$RecurringRule {
 
   Money get amount => Money(amountPaise);
 
-  factory RecurringRule.fromJson(Map<String, Object?> json) => _$RecurringRuleFromJson(json);
+  factory RecurringRule.fromJson(Map<String, Object?> json) =>
+      _$RecurringRuleFromJson(json);
 }

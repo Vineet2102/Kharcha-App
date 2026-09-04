@@ -31,5 +31,6 @@ abstract class Expense with _$Expense {
 
   Money get amount => Money(amountPaise);
 
-  factory Expense.fromJson(Map<String, Object?> json) => _$ExpenseFromJson(json);
+  factory Expense.fromJson(Map<String, Object?> json) =>
+      _$ExpenseFromJson(json);
 }

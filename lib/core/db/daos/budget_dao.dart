@@ -10,17 +10,23 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
   BudgetDao(super.db);
 
   Stream<List<Budget>> watchForMonth(String householdId, DateTime periodMonth) {
-    return (select(budgets)
-          ..where((t) =>
-              t.householdId.equals(householdId) & t.periodMonth.equals(periodMonth) & t.deletedAt.isNull()))
+    return (select(budgets)..where(
+          (t) =>
+              t.householdId.equals(householdId) &
+              t.periodMonth.equals(periodMonth) &
+              t.deletedAt.isNull(),
+        ))
         .watch();
   }
 
-  Future<Budget?> findById(String id) => (select(budgets)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<Budget?> findById(String id) =>
+      (select(budgets)..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<void> upsert(BudgetsCompanion entry) => into(budgets).insertOnConflictUpdate(entry);
+  Future<void> upsert(BudgetsCompanion entry) =>
+      into(budgets).insertOnConflictUpdate(entry);
 
-  Future<void> softDelete(String id, DateTime now) => (update(budgets)..where((t) => t.id.equals(id))).write(
+  Future<void> softDelete(String id, DateTime now) =>
+      (update(budgets)..where((t) => t.id.equals(id))).write(
         BudgetsCompanion(
           deletedAt: Value(now),
           updatedAt: Value(now),
@@ -30,9 +36,14 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
         ),
       );
 
-  Future<void> markSynced(String id) => (update(budgets)..where((t) => t.id.equals(id))).write(
-        const BudgetsCompanion(isDirty: Value(false), syncStatus: Value('synced')),
+  Future<void> markSynced(String id) =>
+      (update(budgets)..where((t) => t.id.equals(id))).write(
+        const BudgetsCompanion(
+          isDirty: Value(false),
+          syncStatus: Value('synced'),
+        ),
       );
 
-  Future<int> hardDelete(String id) => (delete(budgets)..where((t) => t.id.equals(id))).go();
+  Future<int> hardDelete(String id) =>
+      (delete(budgets)..where((t) => t.id.equals(id))).go();
 }

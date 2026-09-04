@@ -6,12 +6,15 @@ import '../tables/payment_methods_table.dart';
 part 'payment_method_dao.g.dart';
 
 @DriftAccessor(tables: [PaymentMethods])
-class PaymentMethodDao extends DatabaseAccessor<AppDatabase> with _$PaymentMethodDaoMixin {
+class PaymentMethodDao extends DatabaseAccessor<AppDatabase>
+    with _$PaymentMethodDaoMixin {
   PaymentMethodDao(super.db);
 
   Stream<List<PaymentMethod>> watchAll(String householdId) {
     return (select(paymentMethods)
-          ..where((t) => t.householdId.equals(householdId) & t.deletedAt.isNull())
+          ..where(
+            (t) => t.householdId.equals(householdId) & t.deletedAt.isNull(),
+          )
           ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
         .watch();
   }
@@ -19,9 +22,11 @@ class PaymentMethodDao extends DatabaseAccessor<AppDatabase> with _$PaymentMetho
   Future<PaymentMethod?> findById(String id) =>
       (select(paymentMethods)..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<void> upsert(PaymentMethodsCompanion entry) => into(paymentMethods).insertOnConflictUpdate(entry);
+  Future<void> upsert(PaymentMethodsCompanion entry) =>
+      into(paymentMethods).insertOnConflictUpdate(entry);
 
-  Future<void> softDelete(String id, DateTime now) => (update(paymentMethods)..where((t) => t.id.equals(id))).write(
+  Future<void> softDelete(String id, DateTime now) =>
+      (update(paymentMethods)..where((t) => t.id.equals(id))).write(
         PaymentMethodsCompanion(
           deletedAt: Value(now),
           updatedAt: Value(now),
@@ -31,9 +36,14 @@ class PaymentMethodDao extends DatabaseAccessor<AppDatabase> with _$PaymentMetho
         ),
       );
 
-  Future<void> markSynced(String id) => (update(paymentMethods)..where((t) => t.id.equals(id))).write(
-        const PaymentMethodsCompanion(isDirty: Value(false), syncStatus: Value('synced')),
+  Future<void> markSynced(String id) =>
+      (update(paymentMethods)..where((t) => t.id.equals(id))).write(
+        const PaymentMethodsCompanion(
+          isDirty: Value(false),
+          syncStatus: Value('synced'),
+        ),
       );
 
-  Future<int> hardDelete(String id) => (delete(paymentMethods)..where((t) => t.id.equals(id))).go();
+  Future<int> hardDelete(String id) =>
+      (delete(paymentMethods)..where((t) => t.id.equals(id))).go();
 }

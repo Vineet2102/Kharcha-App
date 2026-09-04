@@ -4,7 +4,8 @@ class Households extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get currencyCode => text().withDefault(const Constant('INR'))();
-  TextColumn get timezone => text().withDefault(const Constant('Asia/Kolkata'))();
+  TextColumn get timezone =>
+      text().withDefault(const Constant('Asia/Kolkata'))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 

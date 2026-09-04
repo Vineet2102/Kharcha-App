@@ -9,9 +9,12 @@ part 'profile_dao.g.dart';
 class ProfileDao extends DatabaseAccessor<AppDatabase> with _$ProfileDaoMixin {
   ProfileDao(super.db);
 
-  Stream<Profile?> watchById(String id) => (select(profiles)..where((t) => t.id.equals(id))).watchSingleOrNull();
+  Stream<Profile?> watchById(String id) =>
+      (select(profiles)..where((t) => t.id.equals(id))).watchSingleOrNull();
 
-  Future<Profile?> findById(String id) => (select(profiles)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<Profile?> findById(String id) =>
+      (select(profiles)..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<void> upsert(ProfilesCompanion entry) => into(profiles).insertOnConflictUpdate(entry);
+  Future<void> upsert(ProfilesCompanion entry) =>
+      into(profiles).insertOnConflictUpdate(entry);
 }

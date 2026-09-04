@@ -7,5 +7,6 @@ class BudgetListScreen extends StatelessWidget {
   const BudgetListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Budgets');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Budgets');
 }

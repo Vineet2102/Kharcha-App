@@ -13,7 +13,8 @@ sealed class Failure {
 
 final class NetworkFailure extends Failure {
   const NetworkFailure([
-    super.message = 'No internet connection. Your changes are saved and will sync later.',
+    super.message =
+        'No internet connection. Your changes are saved and will sync later.',
   ]);
 }
 

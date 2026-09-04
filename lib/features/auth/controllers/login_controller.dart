@@ -22,7 +22,9 @@ class LoginController extends _$LoginController {
 
   Future<bool> signIn({required String email, required String password}) async {
     state = const AsyncLoading();
-    final result = await ref.read(authRepositoryProvider).signIn(email: email, password: password);
+    final result = await ref
+        .read(authRepositoryProvider)
+        .signIn(email: email, password: password);
     return result.fold(
       (_) {
         state = const AsyncData(null);

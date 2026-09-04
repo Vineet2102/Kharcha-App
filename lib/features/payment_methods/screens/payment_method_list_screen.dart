@@ -8,5 +8,6 @@ class PaymentMethodListScreen extends StatelessWidget {
   const PaymentMethodListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Payment methods');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Payment methods');
 }

@@ -7,5 +7,6 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Dashboard');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Dashboard');
 }

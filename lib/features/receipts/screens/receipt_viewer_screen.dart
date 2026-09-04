@@ -10,5 +10,6 @@ class ReceiptViewerScreen extends StatelessWidget {
   final String attachmentId;
 
   @override
-  Widget build(BuildContext context) => PlaceholderScreen(title: 'Receipt', subtitle: attachmentId);
+  Widget build(BuildContext context) =>
+      PlaceholderScreen(title: 'Receipt', subtitle: attachmentId);
 }

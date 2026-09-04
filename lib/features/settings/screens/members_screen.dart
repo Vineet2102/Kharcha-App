@@ -7,5 +7,6 @@ class MembersScreen extends StatelessWidget {
   const MembersScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Members');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Members');
 }

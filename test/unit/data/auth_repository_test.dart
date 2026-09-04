@@ -26,31 +26,55 @@ void main() {
   group('signIn', () {
     test('returns Ok on success', () async {
       when(
-        () => auth.signInWithPassword(email: any(named: 'email'), password: any(named: 'password')),
+        () => auth.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
       ).thenAnswer((_) async => AuthResponse());
 
-      final result = await repository.signIn(email: 'a@b.com', password: 'secret');
+      final result = await repository.signIn(
+        email: 'a@b.com',
+        password: 'secret',
+      );
 
       expect(result.isOk, isTrue);
     });
 
-    test('maps invalid credentials to the spec-exact message (T-3.3)', () async {
-      when(
-        () => auth.signInWithPassword(email: any(named: 'email'), password: any(named: 'password')),
-      ).thenThrow(const AuthException('Invalid login credentials'));
+    test(
+      'maps invalid credentials to the spec-exact message (T-3.3)',
+      () async {
+        when(
+          () => auth.signInWithPassword(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenThrow(const AuthException('Invalid login credentials'));
 
-      final result = await repository.signIn(email: 'a@b.com', password: 'wrong');
+        final result = await repository.signIn(
+          email: 'a@b.com',
+          password: 'wrong',
+        );
 
-      expect(result.failureOrNull, isA<AuthFailure>());
-      expect(result.failureOrNull!.message, 'Email or password is incorrect.');
-    });
+        expect(result.failureOrNull, isA<AuthFailure>());
+        expect(
+          result.failureOrNull!.message,
+          'Email or password is incorrect.',
+        );
+      },
+    );
 
     test('maps a network error to the sign-in-specific offline message', () async {
       when(
-        () => auth.signInWithPassword(email: any(named: 'email'), password: any(named: 'password')),
+        () => auth.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
       ).thenThrow(const SocketException('no route to host'));
 
-      final result = await repository.signIn(email: 'a@b.com', password: 'secret');
+      final result = await repository.signIn(
+        email: 'a@b.com',
+        password: 'secret',
+      );
 
       expect(result.failureOrNull, isA<NetworkFailure>());
       expect(

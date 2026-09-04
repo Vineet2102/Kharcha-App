@@ -22,5 +22,6 @@ abstract class Profile with _$Profile {
 
   bool get isAdmin => role == MemberRole.admin;
 
-  factory Profile.fromJson(Map<String, Object?> json) => _$ProfileFromJson(json);
+  factory Profile.fromJson(Map<String, Object?> json) =>
+      _$ProfileFromJson(json);
 }

@@ -14,5 +14,6 @@ abstract class Household with _$Household {
     @JsonKey(name: 'updated_at') required DateTime updatedAt,
   }) = _Household;
 
-  factory Household.fromJson(Map<String, Object?> json) => _$HouseholdFromJson(json);
+  factory Household.fromJson(Map<String, Object?> json) =>
+      _$HouseholdFromJson(json);
 }

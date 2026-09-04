@@ -4,7 +4,13 @@ import 'dart:developer' as developer;
 enum LogLevel { debug, info, warn, error }
 
 class LogEntry {
-  LogEntry(this.level, this.message, this.timestamp, {this.error, this.stackTrace});
+  LogEntry(
+    this.level,
+    this.message,
+    this.timestamp, {
+    this.error,
+    this.stackTrace,
+  });
 
   final LogLevel level;
   final String message;
@@ -48,8 +54,19 @@ class AppLogger {
   void error(String message, [Object? error, StackTrace? stackTrace]) =>
       _log(LogLevel.error, message, error, stackTrace);
 
-  void _log(LogLevel level, String message, [Object? error, StackTrace? stackTrace]) {
-    final entry = LogEntry(level, message, DateTime.now(), error: error, stackTrace: stackTrace);
+  void _log(
+    LogLevel level,
+    String message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) {
+    final entry = LogEntry(
+      level,
+      message,
+      DateTime.now(),
+      error: error,
+      stackTrace: stackTrace,
+    );
     _buffer.addLast(entry);
     while (_buffer.length > _maxEntries) {
       _buffer.removeFirst();
@@ -64,11 +81,11 @@ class AppLogger {
   }
 
   int _levelValue(LogLevel level) => switch (level) {
-        LogLevel.debug => 500,
-        LogLevel.info => 800,
-        LogLevel.warn => 900,
-        LogLevel.error => 1000,
-      };
+    LogLevel.debug => 500,
+    LogLevel.info => 800,
+    LogLevel.warn => 900,
+    LogLevel.error => 1000,
+  };
 
   String exportAsText() => _buffer.map((e) => e.toString()).join('\n');
 

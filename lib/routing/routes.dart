@@ -35,5 +35,6 @@ class AppRoutes {
   static String incomeDetailPath(String id) => '/income/$id';
   static String budgetDetailPath(String id) => '/budgets/$id';
   static String recurringDetailPath(String id) => '/recurring/$id';
-  static String receiptViewerPath(String attachmentId) => '/receipt/$attachmentId';
+  static String receiptViewerPath(String attachmentId) =>
+      '/receipt/$attachmentId';
 }

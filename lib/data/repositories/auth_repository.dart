@@ -19,7 +19,10 @@ class AuthRepository {
 
   Stream<AuthState> get onAuthStateChange => _client.auth.onAuthStateChange;
 
-  Future<Result<void, Failure>> signIn({required String email, required String password}) async {
+  Future<Result<void, Failure>> signIn({
+    required String email,
+    required String password,
+  }) async {
     try {
       await _client.auth.signInWithPassword(email: email, password: password);
       return const Result.ok(null);
@@ -29,7 +32,9 @@ class AuthRepository {
       // that case gets its own message rather than the generic offline one.
       if (failure is NetworkFailure) {
         return const Result.err(
-          NetworkFailure("You're offline. Sign in needs an internet connection the first time."),
+          NetworkFailure(
+            "You're offline. Sign in needs an internet connection the first time.",
+          ),
         );
       }
       return Result.err(failure);
@@ -56,4 +61,5 @@ class AuthRepository {
 }
 
 @Riverpod(keepAlive: true)
-AuthRepository authRepository(Ref ref) => AuthRepository(ref.watch(supabaseClientProvider));
+AuthRepository authRepository(Ref ref) =>
+    AuthRepository(ref.watch(supabaseClientProvider));

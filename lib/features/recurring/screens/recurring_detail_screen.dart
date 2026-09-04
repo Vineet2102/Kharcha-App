@@ -11,7 +11,7 @@ class RecurringDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PlaceholderScreen(
-        title: id == null ? 'Add recurring rule' : 'Edit recurring rule',
-        subtitle: id,
-      );
+    title: id == null ? 'Add recurring rule' : 'Edit recurring rule',
+    subtitle: id,
+  );
 }

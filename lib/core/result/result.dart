@@ -10,24 +10,25 @@ sealed class Result<T, F> {
   bool get isErr => this is Err<T, F>;
 
   T? get valueOrNull => switch (this) {
-        Ok<T, F>(:final value) => value,
-        Err<T, F>() => null,
-      };
+    Ok<T, F>(:final value) => value,
+    Err<T, F>() => null,
+  };
 
   F? get failureOrNull => switch (this) {
-        Ok<T, F>() => null,
-        Err<T, F>(:final failure) => failure,
-      };
+    Ok<T, F>() => null,
+    Err<T, F>(:final failure) => failure,
+  };
 
-  R fold<R>(R Function(T value) onOk, R Function(F failure) onErr) => switch (this) {
+  R fold<R>(R Function(T value) onOk, R Function(F failure) onErr) =>
+      switch (this) {
         Ok<T, F>(:final value) => onOk(value),
         Err<T, F>(:final failure) => onErr(failure),
       };
 
   Result<R, F> map<R>(R Function(T value) transform) => switch (this) {
-        Ok<T, F>(:final value) => Result.ok(transform(value)),
-        Err<T, F>(:final failure) => Result.err(failure),
-      };
+    Ok<T, F>(:final value) => Result.ok(transform(value)),
+    Err<T, F>(:final failure) => Result.err(failure),
+  };
 }
 
 final class Ok<T, F> extends Result<T, F> {

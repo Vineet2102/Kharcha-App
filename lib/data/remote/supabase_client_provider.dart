@@ -12,7 +12,8 @@ SupabaseClient supabaseClient(Ref ref) => Supabase.instance.client;
 
 /// Every sign-in/sign-out/token-refresh event, straight from the SDK.
 @Riverpod(keepAlive: true)
-Stream<AuthState> authStateChanges(Ref ref) => ref.watch(supabaseClientProvider).auth.onAuthStateChange;
+Stream<AuthState> authStateChanges(Ref ref) =>
+    ref.watch(supabaseClientProvider).auth.onAuthStateChange;
 
 /// The current session, reactive to [authStateChangesProvider]. Falls back
 /// to the client's synchronous `currentSession` for the instant before the

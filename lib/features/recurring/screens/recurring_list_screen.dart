@@ -7,5 +7,6 @@ class RecurringListScreen extends StatelessWidget {
   const RecurringListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Recurring');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Recurring');
 }

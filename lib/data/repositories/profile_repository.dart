@@ -40,19 +40,29 @@ class ProfileRepository {
   /// profile row the sign-out wipe (T-3.6) just deleted.
   Future<void> refresh(String userId) async {
     try {
-      final json = await _client.from('profiles').select().eq('id', userId).single();
+      final json = await _client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .single();
       if (_client.auth.currentSession?.user.id != userId) return;
       final profile = domain.Profile.fromJson(json);
       await _db.profileDao.upsert(profile.toCompanion());
     } catch (error, stackTrace) {
-      AppLogger.instance.warn('Profile refresh failed for $userId', error, stackTrace);
+      AppLogger.instance.warn(
+        'Profile refresh failed for $userId',
+        error,
+        stackTrace,
+      );
     }
   }
 }
 
 @Riverpod(keepAlive: true)
-ProfileRepository profileRepository(Ref ref) =>
-    ProfileRepository(ref.watch(supabaseClientProvider), ref.watch(appDatabaseProvider));
+ProfileRepository profileRepository(Ref ref) => ProfileRepository(
+  ref.watch(supabaseClientProvider),
+  ref.watch(appDatabaseProvider),
+);
 
 /// Resolves offline from the Drift cache (T-3.5 acceptance) while kicking
 /// off a background refresh whenever there's a signed-in user to refresh.

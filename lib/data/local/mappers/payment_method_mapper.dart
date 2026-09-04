@@ -6,20 +6,21 @@ import '../../../domain/models/payment_method.dart' as domain;
 
 extension PaymentMethodRowMapper on PaymentMethod {
   domain.PaymentMethod toDomain() => domain.PaymentMethod(
-        id: id,
-        householdId: householdId,
-        name: name,
-        type: PayMethodType.values.byName(type),
-        isArchived: isArchived,
-        sortOrder: sortOrder,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
-        deletedAt: deletedAt,
-      );
+    id: id,
+    householdId: householdId,
+    name: name,
+    type: PayMethodType.values.byName(type),
+    isArchived: isArchived,
+    sortOrder: sortOrder,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    deletedAt: deletedAt,
+  );
 }
 
 extension PaymentMethodDomainMapper on domain.PaymentMethod {
-  PaymentMethodsCompanion toCompanion({bool dirty = false}) => PaymentMethodsCompanion(
+  PaymentMethodsCompanion toCompanion({bool dirty = false}) =>
+      PaymentMethodsCompanion(
         id: Value(id),
         householdId: Value(householdId),
         name: Value(name),

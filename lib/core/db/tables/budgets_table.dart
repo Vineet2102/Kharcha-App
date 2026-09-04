@@ -9,7 +9,8 @@ class Budgets extends Table {
   IntColumn get amountPaise => integer()();
   DateTimeColumn get periodMonth => dateTime()();
   BoolColumn get isRollover => boolean().withDefault(const Constant(false))();
-  IntColumn get alertThresholdPct => integer().withDefault(const Constant(80))();
+  IntColumn get alertThresholdPct =>
+      integer().withDefault(const Constant(80))();
   TextColumn get createdBy => text()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();

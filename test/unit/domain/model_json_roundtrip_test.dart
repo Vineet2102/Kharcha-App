@@ -15,7 +15,12 @@ void main() {
   final now = DateTime.utc(2026, 9, 1, 12, 0, 0);
 
   test('Household round-trips through JSON', () {
-    final model = Household(id: 'h1', name: 'Panicker Family', createdAt: now, updatedAt: now);
+    final model = Household(
+      id: 'h1',
+      name: 'Panicker Family',
+      createdAt: now,
+      updatedAt: now,
+    );
     expect(Household.fromJson(model.toJson()), model);
   });
 
@@ -101,23 +106,26 @@ void main() {
     expect(Attachment.fromJson(model.toJson()), model);
   });
 
-  test('Budget round-trips through JSON, including the user_category enum value', () {
-    final model = Budget(
-      id: 'b1',
-      householdId: 'h1',
-      scope: BudgetScope.userCategory,
-      userId: 'u1',
-      categoryId: 'c1',
-      amountPaise: 500000,
-      periodMonth: DateTime.utc(2026, 9, 1),
-      createdBy: 'u1',
-      createdAt: now,
-      updatedAt: now,
-    );
-    final json = model.toJson();
-    expect(json['scope'], 'user_category');
-    expect(Budget.fromJson(json), model);
-  });
+  test(
+    'Budget round-trips through JSON, including the user_category enum value',
+    () {
+      final model = Budget(
+        id: 'b1',
+        householdId: 'h1',
+        scope: BudgetScope.userCategory,
+        userId: 'u1',
+        categoryId: 'c1',
+        amountPaise: 500000,
+        periodMonth: DateTime.utc(2026, 9, 1),
+        createdBy: 'u1',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final json = model.toJson();
+      expect(json['scope'], 'user_category');
+      expect(Budget.fromJson(json), model);
+    },
+  );
 
   test('RecurringRule round-trips through JSON', () {
     final model = RecurringRule(

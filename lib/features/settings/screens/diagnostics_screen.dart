@@ -8,5 +8,6 @@ class DiagnosticsScreen extends StatelessWidget {
   const DiagnosticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Diagnostics');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Diagnostics');
 }

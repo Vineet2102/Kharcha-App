@@ -8,5 +8,6 @@ class CategoryListScreen extends StatelessWidget {
   const CategoryListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Categories');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Categories');
 }

@@ -11,16 +11,21 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
 
   Stream<List<Income>> watchAll(String householdId) {
     return (select(incomes)
-          ..where((t) => t.householdId.equals(householdId) & t.deletedAt.isNull())
+          ..where(
+            (t) => t.householdId.equals(householdId) & t.deletedAt.isNull(),
+          )
           ..orderBy([(t) => OrderingTerm.desc(t.receivedOn)]))
         .watch();
   }
 
-  Future<Income?> findById(String id) => (select(incomes)..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<Income?> findById(String id) =>
+      (select(incomes)..where((t) => t.id.equals(id))).getSingleOrNull();
 
-  Future<void> upsert(IncomesCompanion entry) => into(incomes).insertOnConflictUpdate(entry);
+  Future<void> upsert(IncomesCompanion entry) =>
+      into(incomes).insertOnConflictUpdate(entry);
 
-  Future<void> softDelete(String id, DateTime now) => (update(incomes)..where((t) => t.id.equals(id))).write(
+  Future<void> softDelete(String id, DateTime now) =>
+      (update(incomes)..where((t) => t.id.equals(id))).write(
         IncomesCompanion(
           deletedAt: Value(now),
           updatedAt: Value(now),
@@ -30,9 +35,14 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
         ),
       );
 
-  Future<void> markSynced(String id) => (update(incomes)..where((t) => t.id.equals(id))).write(
-        const IncomesCompanion(isDirty: Value(false), syncStatus: Value('synced')),
+  Future<void> markSynced(String id) =>
+      (update(incomes)..where((t) => t.id.equals(id))).write(
+        const IncomesCompanion(
+          isDirty: Value(false),
+          syncStatus: Value('synced'),
+        ),
       );
 
-  Future<int> hardDelete(String id) => (delete(incomes)..where((t) => t.id.equals(id))).go();
+  Future<int> hardDelete(String id) =>
+      (delete(incomes)..where((t) => t.id.equals(id))).go();
 }

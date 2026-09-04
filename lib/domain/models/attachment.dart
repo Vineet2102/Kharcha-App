@@ -20,5 +20,6 @@ abstract class Attachment with _$Attachment {
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
   }) = _Attachment;
 
-  factory Attachment.fromJson(Map<String, Object?> json) => _$AttachmentFromJson(json);
+  factory Attachment.fromJson(Map<String, Object?> json) =>
+      _$AttachmentFromJson(json);
 }

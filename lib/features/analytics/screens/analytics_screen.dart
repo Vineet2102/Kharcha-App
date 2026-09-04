@@ -7,5 +7,6 @@ class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const PlaceholderScreen(title: 'Analytics');
+  Widget build(BuildContext context) =>
+      const PlaceholderScreen(title: 'Analytics');
 }
