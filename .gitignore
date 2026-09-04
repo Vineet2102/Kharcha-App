@@ -67,3 +67,6 @@ android/app/*.jks
 *.g.dart
 *.freezed.dart
 *.mocks.dart
+
+# Project spec (private)
+KHARCHA_SPEC.md
