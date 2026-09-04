@@ -51,6 +51,45 @@ class AppTime {
     return periodMonth.isAfter(currentMonthStart);
   }
 
+  /// Parses a bare `date`-typed Postgres column value (e.g. `"2026-09-01"`,
+  /// no time-of-day or timezone suffix) as a UTC calendar-date marker.
+  ///
+  /// `DateTime.parse` on a string with no offset returns a **local**-flagged
+  /// DateTime — on any device not physically in UTC (every Kharcha device,
+  /// by design, is in IST, per spec §3), that silently shifts the instant
+  /// by the device's UTC offset once `millisecondsSinceEpoch` is taken (as
+  /// Drift does for storage). This mirrors the `DateTime.utc(y, m, d)`
+  /// convention every calendar-date column (`spent_on`, `received_on`,
+  /// `period_month`, `start_date`/`end_date`/`next_due_date`/
+  /// `last_posted_on`) already uses on write — every domain model's
+  /// `fromJson` for one of those columns must route through this, not a
+  /// bare `DateTime.parse`.
+  static DateTime parseDateOnly(String value) {
+    final parsed = DateTime.parse(value);
+    return DateTime.utc(parsed.year, parsed.month, parsed.day);
+  }
+
+  /// Nullable sibling of [parseDateOnly], for optional `date` columns
+  /// (`end_date`, `last_posted_on`).
+  static DateTime? parseDateOnlyOrNull(String? value) =>
+      value == null ? null : parseDateOnly(value);
+
+  /// Number of days in the month [periodMonth] falls in.
+  static int daysInMonth(DateTime periodMonth) =>
+      DateTime.utc(periodMonth.year, periodMonth.month + 1, 0).day;
+
+  /// Days left (inclusive of today) in [periodMonth], in IST. 0 for a past
+  /// month, the full day count for a future month — used for a budget's
+  /// "daily allowance" (spec §11.7); callers only ever pass the current or a
+  /// past/future month, never a mid-month instant.
+  static int daysRemainingInMonth(DateTime periodMonth) {
+    final today = nowIst();
+    if (!isSameIstMonth(periodMonth, today)) {
+      return periodMonth.isAfter(today) ? daysInMonth(periodMonth) : 0;
+    }
+    return daysInMonth(periodMonth) - today.day + 1;
+  }
+
   static const _monthNames = [
     'January',
     'February',

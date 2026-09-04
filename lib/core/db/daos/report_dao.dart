@@ -122,6 +122,29 @@ class ReportDao extends DatabaseAccessor<AppDatabase> with _$ReportDaoMixin {
     );
   }
 
+  /// Household expense total scoped to an optional member and/or category —
+  /// the 4 budget scopes (spec §11.7, T-8.1) are exactly the 4 combinations
+  /// of these two filters being present or absent.
+  Stream<int> watchExpenseForScope({
+    required String householdId,
+    required DateTime start,
+    required DateTime end,
+    String? userId,
+    String? categoryId,
+  }) {
+    var cond = _expensePeriod(householdId, start, end);
+    if (userId != null) cond = cond & expenses.userId.equals(userId);
+    if (categoryId != null) {
+      cond = cond & expenses.categoryId.equals(categoryId);
+    }
+    final query = selectOnly(expenses)
+      ..addColumns([expenses.amountPaise.sum()])
+      ..where(cond);
+    return query
+        .map((row) => row.read(expenses.amountPaise.sum()) ?? 0)
+        .watchSingle();
+  }
+
   Expression<bool> _expensePeriod(
     String householdId,
     DateTime start,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../data/remote/supabase_client_provider.dart';
+import '../../../data/repositories/budget_alert_service.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/expense_repository.dart';
 import '../../../data/repositories/payment_method_repository.dart';
@@ -122,7 +125,9 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.id == null ? 'Add expense' : 'Expense')),
+        appBar: AppBar(
+          title: Text(widget.id == null ? 'Add expense' : 'Expense'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -174,10 +179,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _AmountField(
-            controller: _amountController,
-            errorText: _amountError,
-          ),
+          _AmountField(controller: _amountController, errorText: _amountError),
           const SizedBox(height: 24),
           Text('Category', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
@@ -260,9 +262,8 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
       return;
     }
     if (_categoryId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Pick a category.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Pick a category.')));
       return;
     }
     if (_paymentMethodId == null) {
@@ -317,6 +318,11 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
         note: _noteController.text.trim(),
         merchant: _merchantController.text.trim(),
       );
+      unawaited(
+        ref
+            .read(budgetAlertServiceProvider)
+            .evaluate(AppConstants.seedHouseholdId),
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
       _showSavedSnackbar(id);
@@ -331,6 +337,11 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
           note: _noteController.text.trim(),
           merchant: _merchantController.text.trim(),
         ),
+      );
+      unawaited(
+        ref
+            .read(budgetAlertServiceProvider)
+            .evaluate(AppConstants.seedHouseholdId),
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -368,9 +379,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Possible duplicate'),
-        content: const Text(
-          'Looks like a possible duplicate — save anyway?',
-        ),
+        content: const Text('Looks like a possible duplicate — save anyway?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -548,8 +557,13 @@ class _DateTimePicker extends StatelessWidget {
           label: const Text('Today'),
           selected: isToday,
           onSelected: (_) => onChanged(
-            DateTime(now.year, now.month, now.day, local.hour, local.minute)
-                .toUtc(),
+            DateTime(
+              now.year,
+              now.month,
+              now.day,
+              local.hour,
+              local.minute,
+            ).toUtc(),
           ),
         ),
         ChoiceChip(
@@ -592,13 +606,7 @@ class _DateTimePicker extends StatelessWidget {
     );
     if (time == null) return;
     onChanged(
-      DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      ).toUtc(),
+      DateTime(date.year, date.month, date.day, time.hour, time.minute).toUtc(),
     );
   }
 }
@@ -637,9 +645,7 @@ class _AutocompleteFieldState extends State<_AutocompleteField> {
       optionsBuilder: (value) {
         if (value.text.isEmpty) return const Iterable.empty();
         final query = value.text.toLowerCase();
-        return widget.suggestions.where(
-          (s) => s.toLowerCase().contains(query),
-        );
+        return widget.suggestions.where((s) => s.toLowerCase().contains(query));
       },
       fieldViewBuilder: (context, textController, focusNode, onSubmit) {
         return TextField(

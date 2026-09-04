@@ -706,3 +706,154 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   `databases/kharcha.sqlite` (unlike some other Flutter/Drift app layouts) —
   `adb exec-out run-as com.panicker.kharcha cat app_flutter/kharcha.sqlite`
   is the correct pull command for this app.
+
+## 2026-09-05 — Phase 8 (Budgets & alerts)
+
+### Notification init brought forward from Phase 13 (T-8.5)
+- Spec §11.12 (notifications) is Phase 13's phase, but T-8.5 explicitly
+  requires firing a real local notification on a budget threshold crossing.
+  Rather than half-build notification support inside Phase 8 and redo it in
+  Phase 13, `core/notifications/notification_service.dart` is the real,
+  final `flutter_local_notifications` wrapper (`init()` + `show()`) that
+  Phase 13 will reuse as-is, just adding scheduled notifications
+  (`.zonedSchedule()`) on top. `NotificationService.instance.init()` is
+  called once from `main()`'s bootstrap (`await`ed, before `runApp`), and
+  `android/app/src/main/AndroidManifest.xml` gained the Android 13+
+  `POST_NOTIFICATIONS` permission.
+- `flutter_local_notifications` 22.3.0's `initialize()`/`show()` now take
+  everything as named parameters (`settings:`, `notificationDetails:`) —
+  the positional-args signature shown in most still-circulating tutorials
+  is stale for this pinned version.
+
+### Member-facing scope choices mirror `bud_write`'s RLS shape (T-8.1/T-8.2)
+- `0006_rls.sql`'s `bud_write` policy: `is_admin() OR user_id = auth.uid()`.
+  Since `scope = household` and `scope = category` always have `user_id
+  IS NULL` (per the `budgets_scope_shape` constraint), a non-admin member
+  can never legally write one — RLS would reject it every time. Rather than
+  let a member fill out the whole form and then fail server-side,
+  `BudgetDetailScreen._allowedScopes` only shows Household/Category as
+  choices when `_isAdmin`; a member sees User/User+Category only, with
+  `_userId` pre-forced to their own id and not editable. `create()`/
+  `update()` still separately check `isValidBudgetScopeShape()` (T-8.1) —
+  that guards the shape constraint, not the RLS ownership rule, which stays
+  server-enforced only (consistent with every other repository in this app:
+  "RLS is the real enforcement, screens just hide the controls").
+
+### `copyToNext12Months` skips instead of erroring on an existing month
+- Spec T-8.2 says "creates exactly 12 rows," which assumes a clean 12-month
+  run. `BudgetRepository.copyToNext12Months()` looks up each target month
+  via `findByScope` first and skips it if a budget with that exact scope
+  shape already exists there, rather than letting the DB's
+  `budgets_unique_scope` index reject it as a hard failure partway through
+  the loop. Simplest option that can't leave the operation half-applied
+  with a swallowed error.
+
+### Budget status/rollover is nested `StreamBuilder`s, not a Riverpod combinator
+- Computing a budget's live status needs to combine two things: a live
+  scoped-spend stream (spec: "evaluated after every expense save") and the
+  previous month's budget+spend (only for rollover). Rather than building a
+  Riverpod provider that watches N other providers to fan this out,
+  `BudgetRepository.watchStatus()` is a plain method returning
+  `Stream<BudgetStatus>` (spend stream `.asyncMap`'d with a one-shot
+  rollover lookup), consumed via a `StreamBuilder` per row — exactly the
+  nested-`StreamBuilder` pattern `dashboard_screen.dart`'s cards already
+  use (T-6.3's `_HouseholdSummaryCard`). Keeps this feature consistent with
+  the rest of the app's Dashboard-adjacent code rather than introducing a
+  second combining idiom.
+- The Budget List screen's ok/warning/exceeded summary header needs the
+  computed health of every row, but each row's `BudgetStatus` only exists
+  inside that row's own `StreamBuilder`. Rather than a second live
+  subscription per row just to feed a header count, each `_BudgetRow`
+  reports its health up via a plain callback (`onHealth`), and the parent
+  `State` aggregates it in a `Map<String, BudgetHealth>`, deferred one
+  frame via `WidgetsBinding.instance.addPostFrameCallback` to avoid a
+  `setState`-during-build error. **Bug found & fixed during live
+  verification**: this map was never pruned when a budget left the current
+  month's list (deleted, or the month changed), so a deleted budget's last
+  health kept inflating the summary counts forever. Fixed by computing the
+  displayed counts only over budgets still present in the current
+  `budgets` list (`currentHealths` in `budget_list_screen.dart`), rather
+  than over every id the map has ever seen.
+
+### Bug found & fixed — `DateTime.parse` on a bare Postgres `date` column corrupts the instant by the device's UTC offset
+- **This is the third occurrence of the IST-offset family of bugs first
+  documented in Phase 4** ("Drift `DateTime` columns decode as
+  local-flagged, not UTC") and Phase 5 ("mapper `toDomain()` never applied
+  the Phase 4 `.toUtc()` fix") — same root cause category (a UTC/local
+  timezone boundary silently applied where it shouldn't be), a different
+  code path each time, and — like both predecessors — invisible to every
+  previous gate's live verification until a query pattern came along that
+  actually exposed it.
+- **Symptom**: created a household budget for "September 2026" live on the
+  `kharcha_test` emulator (physically running with IST as its timezone,
+  per spec §3 — every real Kharcha device). `BudgetListScreen`'s exact
+  `t.periodMonth.equals(periodMonth)` query against a freshly computed
+  `AppTime.monthStart(DateTime.now().toUtc())` (verified correct via a
+  temporary debug `print`: `2026-09-01T00:00:00.000Z`, `isUtc: true`)
+  returned nothing — the just-created budget had vanished from the list
+  entirely, in both September *and* August.
+- **Root cause**: `period_month` (and `spent_on`, `received_on`,
+  `start_date`, `end_date`, `next_due_date`, `last_posted_on` — every
+  calendar-date-only column in the schema, §6.2–§6.5) is Postgres type
+  `date`, not `timestamptz`. PostgREST serialises a `date` column as a bare
+  `"2026-09-01"` — no time-of-day, no `Z`/offset suffix. Every affected
+  domain model's `fromJson` (json_serializable's default codegen for a
+  `DateTime` field) calls plain `DateTime.parse(value)` on that string.
+  Dart's `DateTime.parse` on a string **with no offset returns a
+  local-flagged DateTime** — on a device physically in IST, parsing
+  `"2026-09-01"` yields the instant `2026-08-31T18:30:00Z` once
+  `millisecondsSinceEpoch` is taken (as Drift does for storage), a full
+  5:30 away from the intended `2026-09-01T00:00:00Z` UTC-midnight marker
+  this app's every other calendar-date value uses by convention. The
+  budget's `period_month`, having round-tripped through a pull from
+  Supabase (remote-wins, since the row was clean/non-dirty), got corrupted
+  this way; the fresh in-memory query value never round-trips through JSON
+  so it stayed correct — hence the exact-equality mismatch.
+- Confirmed via a temporary debug `print` at both the query site
+  (`BudgetDao.watchForMonth`) and the write site (`BudgetRepository._save`)
+  that both the query and a **freshly created** budget's `periodMonth` were
+  byte-for-byte correct (`ms=1788220800000`) — the corruption only appears
+  after a value has round-tripped through `fromJson` from a real pull.
+  Raw `sqlite3` reads of the on-device file (`adb shell run-as
+  com.panicker.kharcha sqlite3 app_flutter/kharcha.sqlite`) confirmed the
+  stored integer, not just the decoded Dart flag, is what's wrong here —
+  a stronger and different symptom than Phase 4's bug, where the decoded
+  *instant* was always correct and only the `isUtc` flag was wrong.
+- Also explains, in hindsight, why the pre-existing `spent_on` for an
+  expense created in an earlier phase read back as `2026-09-03T18:30:00Z`
+  instead of a clean UTC midnight when dumped raw off the device — the
+  exact same corruption, silently present since Phase 4/5, just never
+  caught because `spentOn`/`receivedOn` are only ever used in **range**
+  filters (`>=`/`<`) for a whole month at a time; shifting every row's
+  bound by the same 5:30 in the same direction rarely changes which side
+  of a boundary a row falls on, unless the true date is the 1st of the
+  month (untested by any prior gate's fixture data). Budgets' **exact
+  month-equality** lookup has no such tolerance, which is what surfaced it.
+- **Fix**: `AppTime.parseDateOnly(String)` / `parseDateOnlyOrNull(String?)`
+  (`core/time/app_time.dart`) parse the string, then reconstruct
+  `DateTime.utc(parsed.year, parsed.month, parsed.day)` — discarding
+  whatever timezone `DateTime.parse` guessed, keeping only the calendar
+  digits. Applied via `@JsonKey(fromJson: AppTime.parseDateOnly)` (or the
+  nullable sibling) on: `Expense.spentOn`, `Income.receivedOn`,
+  `Budget.periodMonth`, `RecurringRule.startDate`/`endDate`/`nextDueDate`/
+  `lastPostedOn` — every `DateTime` field backed by a `date` column in the
+  schema. `toJson` was left untouched: a `DateTime.utc(y,m,d)` value's
+  default `.toIso8601String()` already round-trips correctly through
+  Postgres's cast from a full timestamptz string to `date` (confirmed by
+  the *absence* of any corruption on the write side throughout this
+  investigation).
+- Self-healed automatically for already-synced rows: the next pull
+  re-applies `fromJson` with the fix and overwrites the locally-corrupted
+  value (remote wins, since these rows were never `is_dirty`) — no manual
+  data migration was needed once the parser was fixed; verified live by
+  restarting the app and re-reading the previously-corrupted budget row's
+  `period_month` off the device, now correct.
+- `test/unit/domain/model_json_roundtrip_test.dart`'s existing Expense/
+  Income/RecurringRule fixtures reused one `now` timestamp (with a
+  non-midnight time-of-day) for *both* the real-instant fields
+  (`spentAt`/`receivedAt`) and the date-only fields (`spentOn`/`receivedOn`/
+  `startDate`/`nextDueDate`) — tolerated before only because the old naive
+  `DateTime.parse` preserved whatever time-of-day it was given. Split into
+  `now` (instants) and a separate `midnight` (date-only fields) so the
+  fixtures reflect this app's actual convention instead of accidentally
+  depending on the bug being fixed.

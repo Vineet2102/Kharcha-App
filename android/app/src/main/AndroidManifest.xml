@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required on Android 13+ to show local notifications (spec §11.12,
+         D6, brought forward for Phase 8's budget alerts). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="kharcha"
         android:name="${applicationName}"

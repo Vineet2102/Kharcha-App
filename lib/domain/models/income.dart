@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../core/money/money.dart';
+import '../../core/time/app_time.dart';
 
 part 'income.freezed.dart';
 part 'income.g.dart';
@@ -14,7 +15,8 @@ abstract class Income with _$Income {
     @JsonKey(name: 'amount_paise') required int amountPaise,
     @JsonKey(name: 'category_id') String? categoryId,
     @JsonKey(name: 'received_at') required DateTime receivedAt,
-    @JsonKey(name: 'received_on') required DateTime receivedOn,
+    @JsonKey(name: 'received_on', fromJson: AppTime.parseDateOnly)
+    required DateTime receivedOn,
     @Default('') String note,
     @Default('') String source,
     @JsonKey(name: 'recurring_rule_id') String? recurringRuleId,

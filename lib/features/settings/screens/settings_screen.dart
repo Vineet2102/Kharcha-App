@@ -65,6 +65,11 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Income'),
             onTap: () => context.push(AppRoutes.income),
           ),
+          ListTile(
+            leading: const Icon(Icons.pie_chart_outline),
+            title: const Text('Budgets'),
+            onTap: () => context.push(AppRoutes.budgets),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../core/money/money.dart';
+import '../../core/time/app_time.dart';
 import 'enums.dart';
 
 part 'recurring_rule.freezed.dart';
@@ -23,12 +24,16 @@ abstract class RecurringRule with _$RecurringRule {
     @JsonKey(name: 'day_of_month') int? dayOfMonth,
     int? weekday,
     @JsonKey(name: 'month_of_year') int? monthOfYear,
-    @JsonKey(name: 'start_date') required DateTime startDate,
-    @JsonKey(name: 'end_date') DateTime? endDate,
-    @JsonKey(name: 'next_due_date') required DateTime nextDueDate,
+    @JsonKey(name: 'start_date', fromJson: AppTime.parseDateOnly)
+    required DateTime startDate,
+    @JsonKey(name: 'end_date', fromJson: AppTime.parseDateOnlyOrNull)
+    DateTime? endDate,
+    @JsonKey(name: 'next_due_date', fromJson: AppTime.parseDateOnly)
+    required DateTime nextDueDate,
     @JsonKey(name: 'auto_post') @Default(false) bool autoPost,
     @JsonKey(name: 'is_active') @Default(true) bool isActive,
-    @JsonKey(name: 'last_posted_on') DateTime? lastPostedOn,
+    @JsonKey(name: 'last_posted_on', fromJson: AppTime.parseDateOnlyOrNull)
+    DateTime? lastPostedOn,
     @JsonKey(name: 'created_at') required DateTime createdAt,
     @JsonKey(name: 'updated_at') required DateTime updatedAt,
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,

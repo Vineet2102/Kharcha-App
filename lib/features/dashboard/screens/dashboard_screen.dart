@@ -6,11 +6,15 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../core/time/app_time.dart';
+import '../../../data/repositories/budget_repository.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/report_repository.dart';
 import '../../../data/sync/sync_engine.dart';
+import '../../../domain/models/budget.dart' as domain;
+import '../../../domain/models/budget_status.dart';
 import '../../../domain/models/category.dart' as domain;
+import '../../../domain/models/enums.dart';
 import '../../../domain/models/expense.dart' as domain;
 import '../../../domain/models/expense_filter.dart';
 import '../../../domain/models/profile.dart' as domain;
@@ -19,10 +23,10 @@ import '../../../routing/routes.dart';
 import '../../expenses/controllers/expense_list_preset_filter_controller.dart';
 import '../controllers/selected_month_controller.dart';
 
-/// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5). Ships
-/// cards 1, 3, 4, 5 only — budget progress (card 2, Phase 8) and pending
-/// recurring (card 6, Phase 9) land with their own phases. Card 7 (the
-/// sync/offline banner) is already rendered above every tab by [AppShell].
+/// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5, T-8.4).
+/// Ships cards 1, 2, 3, 4, 5 — pending recurring (card 6, Phase 9) lands
+/// with its own phase. Card 7 (the sync/offline banner) is already rendered
+/// above every tab by [AppShell].
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -38,6 +42,8 @@ class DashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           children: [
             _HouseholdSummaryCard(monthStart: month),
+            const SizedBox(height: 12),
+            _BudgetProgressCard(monthStart: month),
             const SizedBox(height: 12),
             _MemberBreakdownCard(monthStart: month),
             const SizedBox(height: 12),
@@ -345,6 +351,117 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
     return onTap == null ? row : InkWell(onTap: onTap, child: row);
+  }
+}
+
+/// Card 2 (spec §11.4/§11.7, T-8.4): each of this month's budgets, showing
+/// spent, remaining, days left, and the daily allowance the remainder
+/// works out to. Absent entirely when there are no budgets for the month
+/// (nothing to show, and no "create one?" nag per §0 rule 4).
+class _BudgetProgressCard extends ConsumerWidget {
+  const _BudgetProgressCard({required this.monthStart});
+  final DateTime monthStart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budgetsAsync = ref.watch(budgetsForMonthProvider(monthStart));
+    final categories = ref.watch(categoriesProvider).value ?? const [];
+    final profiles = ref.watch(householdProfilesProvider).value ?? const [];
+    final categoriesById = {for (final c in categories) c.id: c};
+    final profilesById = {for (final p in profiles) p.id: p};
+
+    final budgets = budgetsAsync.value ?? const <domain.Budget>[];
+    if (budgets.isEmpty) return const SizedBox.shrink();
+
+    return _DashboardCard(
+      title: 'Budgets',
+      onSeeAll: () => context.push(AppRoutes.budgets),
+      child: Column(
+        children: [
+          for (final budget in budgets)
+            _BudgetProgressRow(
+              budget: budget,
+              category: categoriesById[budget.categoryId],
+              member: profilesById[budget.userId],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BudgetProgressRow extends ConsumerWidget {
+  const _BudgetProgressRow({
+    required this.budget,
+    required this.category,
+    required this.member,
+  });
+
+  final domain.Budget budget;
+  final domain.Category? category;
+  final domain.Profile? member;
+
+  String get _label => switch (budget.scope) {
+    BudgetScope.household => 'Household',
+    BudgetScope.user => member?.displayName ?? 'Member',
+    BudgetScope.category => category?.name ?? 'Category',
+    BudgetScope.userCategory =>
+      '${member?.displayName ?? 'Member'} · ${category?.name ?? 'Category'}',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return StreamBuilder<BudgetStatus>(
+      stream: ref.watch(budgetRepositoryProvider).watchStatus(budget),
+      builder: (context, snapshot) {
+        final status = snapshot.data;
+        if (status == null) return const SizedBox.shrink();
+        final daysLeft = AppTime.daysRemainingInMonth(budget.periodMonth);
+        final dailyAllowance = daysLeft > 0
+            ? Money((status.remainingPaise / daysLeft).round())
+            : Money.zero;
+        final colour = switch (status.health) {
+          BudgetHealth.ok => Colors.green.shade700,
+          BudgetHealth.warning => Colors.orange.shade800,
+          BudgetHealth.exceeded => Theme.of(context).colorScheme.error,
+        };
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_label),
+                  Text(
+                    '${status.spent.format()} / ${status.effectiveBudget.format()}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: status.pct.clamp(0, 1).toDouble(),
+                  minHeight: 6,
+                  color: colour,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                status.health == BudgetHealth.exceeded
+                    ? 'Exceeded by ${Money(status.overspendPaise).format()}'
+                    : '${status.remaining.format()} left · ${dailyAllowance.format()}/day '
+                          'for $daysLeft day${daysLeft == 1 ? '' : 's'}',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: colour),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

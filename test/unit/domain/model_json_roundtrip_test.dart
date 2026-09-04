@@ -13,6 +13,10 @@ import 'package:kharcha/domain/models/recurring_rule.dart';
 
 void main() {
   final now = DateTime.utc(2026, 9, 1, 12, 0, 0);
+  // `spent_on`/`received_on`/`start_date`/`next_due_date` are Postgres
+  // `date` columns (no time-of-day) — always a UTC-midnight marker in this
+  // app's convention, never `now`'s time-of-day.
+  final midnight = DateTime.utc(2026, 9, 1);
 
   test('Household round-trips through JSON', () {
     final model = Household(
@@ -70,7 +74,7 @@ void main() {
       userId: 'u1',
       amountPaise: 15000,
       spentAt: now,
-      spentOn: now,
+      spentOn: midnight,
       createdAt: now,
       updatedAt: now,
     );
@@ -86,7 +90,7 @@ void main() {
       userId: 'u1',
       amountPaise: 500000,
       receivedAt: now,
-      receivedOn: now,
+      receivedOn: midnight,
       createdAt: now,
       updatedAt: now,
     );
@@ -135,8 +139,8 @@ void main() {
       title: 'Rent',
       amountPaise: 2500000,
       frequency: RecurFrequency.monthly,
-      startDate: now,
-      nextDueDate: now,
+      startDate: midnight,
+      nextDueDate: midnight,
       createdAt: now,
       updatedAt: now,
     );

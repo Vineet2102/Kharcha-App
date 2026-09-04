@@ -207,6 +207,60 @@ void main() {
     },
   );
 
+  group('watchExpenseForScope (T-8.1/T-8.3 budget scopes)', () {
+    test('household scope (no filters) matches the plain total', () async {
+      await seed();
+      final total = await db.reportDao
+          .watchExpenseForScope(
+            householdId: 'h1',
+            start: september,
+            end: october,
+          )
+          .first;
+      expect(total, 10000 + 5000 + 20000 + 3000);
+    });
+
+    test('user scope filters to one member', () async {
+      await seed();
+      final total = await db.reportDao
+          .watchExpenseForScope(
+            householdId: 'h1',
+            start: september,
+            end: october,
+            userId: 'u2',
+          )
+          .first;
+      expect(total, 20000 + 3000);
+    });
+
+    test('category scope filters to one category', () async {
+      await seed();
+      final total = await db.reportDao
+          .watchExpenseForScope(
+            householdId: 'h1',
+            start: september,
+            end: october,
+            categoryId: 'c1',
+          )
+          .first;
+      expect(total, 10000 + 20000);
+    });
+
+    test('userCategory scope filters to both', () async {
+      await seed();
+      final total = await db.reportDao
+          .watchExpenseForScope(
+            householdId: 'h1',
+            start: september,
+            end: october,
+            userId: 'u1',
+            categoryId: 'c1',
+          )
+          .first;
+      expect(total, 10000);
+    });
+  });
+
   test('watchRecentExpenses ignores the month filter but still excludes soft-deletes', () async {
     await seed();
     final recent = await db.reportDao.watchRecentExpenses('h1', limit: 3).first;

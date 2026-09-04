@@ -104,9 +104,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.expenseNew,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ExpenseDetailScreen(
-          duplicateFrom: state.extra as domain.Expense?,
-        ),
+        builder: (context, state) =>
+            ExpenseDetailScreen(duplicateFrom: state.extra as domain.Expense?),
       ),
       GoRoute(
         path: AppRoutes.expenseDetail,
@@ -138,7 +137,8 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.budgetNew,
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BudgetDetailScreen(),
+        builder: (context, state) =>
+            BudgetDetailScreen(initialMonth: state.extra as DateTime?),
       ),
       GoRoute(
         path: AppRoutes.budgetDetail,

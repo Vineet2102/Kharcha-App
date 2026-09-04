@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/constants/app_constants.dart';
 import 'data/remote/supabase_client_provider.dart';
+import 'data/repositories/budget_alert_service.dart';
 import 'data/sync/sync_engine.dart';
 import 'routing/app_router.dart';
 
@@ -55,6 +56,9 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     }
     _lastResumeSync = now;
     ref.read(syncEngineProvider).sync();
+    // Budget alerts are evaluated on every resume regardless of the sync
+    // throttle above (spec §11.7) — it's a local read, not a network call.
+    ref.read(budgetAlertServiceProvider).evaluate(AppConstants.seedHouseholdId);
   }
 
   @override

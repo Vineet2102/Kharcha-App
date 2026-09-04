@@ -22,6 +22,36 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
   Future<Budget?> findById(String id) =>
       (select(budgets)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  /// Looks up the one budget (if any) matching a scope shape exactly — the
+  /// same key the DB's `budgets_unique_scope` index enforces. Used for the
+  /// previous month's rollover lookup and to skip an already-existing month
+  /// when "copy to next 12 months" runs (T-8.2/T-8.3).
+  Future<Budget?> findByScope({
+    required String householdId,
+    required DateTime periodMonth,
+    required String scope,
+    String? userId,
+    String? categoryId,
+  }) {
+    return (select(budgets)..where((t) {
+          var cond =
+              t.householdId.equals(householdId) &
+              t.periodMonth.equals(periodMonth) &
+              t.scope.equals(scope) &
+              t.deletedAt.isNull();
+          cond =
+              cond &
+              (userId == null ? t.userId.isNull() : t.userId.equals(userId));
+          cond =
+              cond &
+              (categoryId == null
+                  ? t.categoryId.isNull()
+                  : t.categoryId.equals(categoryId));
+          return cond;
+        }))
+        .getSingleOrNull();
+  }
+
   Future<void> upsert(BudgetsCompanion entry) =>
       into(budgets).insertOnConflictUpdate(entry);
 

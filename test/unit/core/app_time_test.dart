@@ -48,6 +48,52 @@ void main() {
     });
   });
 
+  group('AppTime.parseDateOnly', () {
+    test('parses a bare date string as UTC midnight, not local midnight', () {
+      // A naive `DateTime.parse('2026-09-01')` returns a *local*-flagged
+      // DateTime; on a device physically in IST that instant is actually
+      // 2026-08-31T18:30:00Z. parseDateOnly must not leak the host's
+      // timezone into the result.
+      expect(AppTime.parseDateOnly('2026-09-01'), DateTime.utc(2026, 9, 1));
+    });
+
+    test('discards a time-of-day component if present', () {
+      expect(
+        AppTime.parseDateOnly('2026-09-01T00:00:00.000Z'),
+        DateTime.utc(2026, 9, 1),
+      );
+    });
+
+    test('parseDateOnlyOrNull passes through null', () {
+      expect(AppTime.parseDateOnlyOrNull(null), isNull);
+    });
+
+    test('parseDateOnlyOrNull parses a non-null value', () {
+      expect(
+        AppTime.parseDateOnlyOrNull('2026-09-01'),
+        DateTime.utc(2026, 9, 1),
+      );
+    });
+  });
+
+  group('AppTime.daysInMonth', () {
+    test('30-day month', () {
+      expect(AppTime.daysInMonth(DateTime.utc(2026, 9, 1)), 30);
+    });
+
+    test('31-day month', () {
+      expect(AppTime.daysInMonth(DateTime.utc(2026, 1, 1)), 31);
+    });
+
+    test('February in a leap year', () {
+      expect(AppTime.daysInMonth(DateTime.utc(2028, 2, 1)), 29);
+    });
+
+    test('February in a non-leap year', () {
+      expect(AppTime.daysInMonth(DateTime.utc(2026, 2, 1)), 28);
+    });
+  });
+
   group('AppTime month labels', () {
     test('monthLabel formats the full month name and year', () {
       expect(AppTime.monthLabel(DateTime.utc(2026, 9, 1)), 'September 2026');

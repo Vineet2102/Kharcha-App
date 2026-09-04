@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../core/money/money.dart';
+import '../../core/time/app_time.dart';
 
 part 'expense.freezed.dart';
 part 'expense.g.dart';
@@ -15,7 +16,8 @@ abstract class Expense with _$Expense {
     @JsonKey(name: 'category_id') String? categoryId,
     @JsonKey(name: 'payment_method_id') String? paymentMethodId,
     @JsonKey(name: 'spent_at') required DateTime spentAt,
-    @JsonKey(name: 'spent_on') required DateTime spentOn,
+    @JsonKey(name: 'spent_on', fromJson: AppTime.parseDateOnly)
+    required DateTime spentOn,
     @Default('') String note,
     @Default('') String merchant,
     @JsonKey(name: 'has_receipt') @Default(false) bool hasReceipt,
