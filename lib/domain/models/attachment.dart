@@ -18,6 +18,12 @@ abstract class Attachment with _$Attachment {
     @JsonKey(name: 'created_at') required DateTime createdAt,
     @JsonKey(name: 'updated_at') required DateTime updatedAt,
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
+
+    /// Local-only sync bookkeeping, same purpose as `Expense.isDirty` — backs
+    /// the expense detail screen's "upload pending" badge (spec §11.9).
+    @JsonKey(includeToJson: false, includeFromJson: false)
+    @Default(false)
+    bool isDirty,
   }) = _Attachment;
 
   factory Attachment.fromJson(Map<String, Object?> json) =>

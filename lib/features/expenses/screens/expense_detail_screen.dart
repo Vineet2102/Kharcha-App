@@ -1,22 +1,28 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../data/remote/supabase_client_provider.dart';
+import '../../../data/repositories/attachment_repository.dart';
 import '../../../data/repositories/budget_alert_service.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/expense_repository.dart';
 import '../../../data/repositories/payment_method_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../domain/models/attachment.dart' as domain;
 import '../../../domain/models/category.dart' as domain;
 import '../../../domain/models/enums.dart';
 import '../../../domain/models/expense.dart' as domain;
 import '../../../domain/models/payment_method.dart' as domain;
 import '../../../domain/models/profile.dart' as domain;
+import '../../../routing/routes.dart';
 import '../../shell/widgets/placeholder_screen.dart';
 
 /// Add/Edit Expense (spec §11.2, T-5.5/T-5.6/T-5.9). `id` is null for the
@@ -235,6 +241,12 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
               ],
             ),
           ],
+          if (widget.id != null) ...[
+            const SizedBox(height: 24),
+            Text('Receipts', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            _ReceiptsSection(expenseId: widget.id!, onAdd: _addReceipt),
+          ],
           const SizedBox(height: 32),
           FilledButton(
             onPressed: _saving ? null : _save,
@@ -415,6 +427,53 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
     if (confirmed != true || !mounted) return;
     await ref.read(expenseRepositoryProvider).delete(widget.id!);
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Capture pipeline entry point (spec §11.9): pick via camera or gallery,
+  /// hand the file straight to [AttachmentRepository], which owns
+  /// compression, local caching, and enqueuing the upload.
+  Future<void> _addReceipt() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picked = await ImagePicker().pickImage(source: source);
+    if (picked == null || !mounted) return;
+
+    final userId = _currentUserId;
+    if (userId == null) return;
+
+    final result = await ref
+        .read(attachmentRepositoryProvider)
+        .addFromFile(
+          householdId: AppConstants.seedHouseholdId,
+          expenseId: widget.id!,
+          uploadedBy: userId,
+          sourcePath: picked.path,
+        );
+    if (!mounted) return;
+    result.fold((_) {}, (failure) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failure.message)));
+    });
   }
 }
 
@@ -747,5 +806,129 @@ class _ReadOnlyExpenseView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Thumbnail row + "Add photo" chip (spec §11.9, T-10.4). Lives on the
+/// existing-expense form only — see `docs/DECISIONS.md` for why a brand new,
+/// unsaved expense doesn't offer this yet.
+class _ReceiptsSection extends ConsumerWidget {
+  const _ReceiptsSection({required this.expenseId, required this.onAdd});
+
+  final String expenseId;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attachmentsAsync = ref.watch(
+      attachmentsForExpenseProvider(expenseId),
+    );
+    final attachments = attachmentsAsync.value ?? const <domain.Attachment>[];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final attachment in attachments)
+          _ReceiptThumbnail(attachment: attachment),
+        if (attachments.length < AttachmentRepository.maxPerExpense)
+          ActionChip(
+            avatar: const Icon(Icons.add_a_photo_outlined, size: 18),
+            label: const Text('Add photo'),
+            onPressed: onAdd,
+          ),
+      ],
+    );
+  }
+}
+
+class _ReceiptThumbnail extends ConsumerStatefulWidget {
+  const _ReceiptThumbnail({required this.attachment});
+
+  final domain.Attachment attachment;
+
+  @override
+  ConsumerState<_ReceiptThumbnail> createState() => _ReceiptThumbnailState();
+}
+
+class _ReceiptThumbnailState extends ConsumerState<_ReceiptThumbnail> {
+  File? _file;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReceiptThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.attachment.id != widget.attachment.id) _resolve();
+  }
+
+  Future<void> _resolve() async {
+    try {
+      final file = await ref
+          .read(attachmentRepositoryProvider)
+          .resolveLocalFile(widget.attachment);
+      if (mounted) setState(() => _file = file);
+    } catch (_) {
+      // Left as the placeholder icon — the outbox/pull retry will surface
+      // the underlying failure elsewhere; this thumbnail just isn't ready.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () =>
+          context.push(AppRoutes.receiptViewerPath(widget.attachment.id)),
+      onLongPress: () => _confirmDelete(context),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 64,
+              height: 64,
+              child: _file == null
+                  ? ColoredBox(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: const Icon(Icons.receipt_long_outlined),
+                    )
+                  : Image.file(_file!, fit: BoxFit.cover),
+            ),
+          ),
+          if (widget.attachment.isDirty)
+            const Positioned(
+              right: 2,
+              top: 2,
+              child: Icon(Icons.cloud_off, size: 14, color: Colors.white),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this photo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(attachmentRepositoryProvider).delete(widget.attachment.id);
+    }
   }
 }

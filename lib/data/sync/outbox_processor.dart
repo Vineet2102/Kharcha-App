@@ -94,6 +94,9 @@ class OutboxProcessor {
           );
           await db.outboxDao.remove(entry.id);
         case 'delete':
+          if (entry.entity == 'attachment') {
+            await _deleteStorageObjectBestEffort(entry.entityId);
+          }
           await adapter.pushSoftDelete(entry.entityId, now);
           await db.outboxDao.remove(entry.id);
           await adapter.markLocalSynced(db, entry.entityId);
@@ -140,6 +143,26 @@ class OutboxProcessor {
     }
     await db.outboxDao.remove(entry.id);
     return true;
+  }
+
+  /// T-10.5: attempts to remove the actual Storage object before the
+  /// `attachments` row is tombstoned. Best-effort — a failure here (offline,
+  /// already gone, transient error) must not block the row's soft delete
+  /// from propagating; it just leaves an orphaned object for a future
+  /// manual Diagnostics cleanup (spec §11.9's documented fallback).
+  Future<void> _deleteStorageObjectBestEffort(String attachmentId) async {
+    try {
+      final row = await db.attachmentDao.findById(attachmentId);
+      if (row == null) return;
+      await client.storage.from('receipts').remove([row.storagePath]);
+    } catch (error, stackTrace) {
+      AppLogger.instance.warn(
+        'Failed to delete storage object for attachment $attachmentId — '
+        'will remain until a manual Diagnostics cleanup.',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   /// Uploads the cached receipt image, then upserts the `attachments` row

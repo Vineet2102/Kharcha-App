@@ -1122,3 +1122,341 @@ environment) — Gate 4 stays at **partial** in PROGRESS.md until the exact
 two-device scenario from 2026-09-05 is re-run live and confirmed to now
 converge on Rupesh's (newer) edit with a logged conflict on Vineet's
 device, rather than the reverse.
+
+## 2026-09-05 — Phase 10 (Receipts)
+
+### Receipt capture is edit-only, not offered on a brand-new unsaved expense
+
+Spec §11.2's field table lists Receipt as a field of the Add/Edit Expense
+form, which could be read as "attachable before the first Save." That
+would require generating the expense's id client-side before it exists in
+Drift, so an attachment (and its outbox `upload` job, referencing
+`expense_id`) could be created first. The risk: if the user backs out of
+the Add form after taking a photo but before hitting Save, the attachment
+row and its already-enqueued outbox entry would reference an expense that
+was never created, and would push straight into a Postgres FK violation
+(`attachments.expense_id references expenses(id)`) — a permanently stuck
+outbox entry with no clean recovery path.
+
+Chose the simpler, safer option (spec item 4: simplest option satisfying
+acceptance criteria): the Receipts section only renders when
+`widget.id != null` (`ExpenseDetailScreen`, `expense_detail_screen.dart`) —
+i.e. once the expense has actually been saved. Attaching a receipt to a
+just-created expense means reopening it from the Expense List, one extra
+tap. None of Phase 10's acceptance criteria (T-10.1–T-10.5, Gate 10)
+require pre-save capture.
+
+### Image compression is injected, not called directly
+
+`AttachmentRepository` takes an `ImageCompressor` typedef (defaults to
+`FlutterImageCompress.compressWithFile`) rather than calling the plugin
+statically, purely so `attachment_repository_test.dart` can run under
+plain `flutter_test` (no platform channel) with a pass-through fake. Same
+reasoning as the existing `path_provider_platform_interface` fake used in
+`migration_v2_to_v3_test.dart` — reused here for the same purpose (faking
+`getApplicationDocumentsDirectory()`).
+
+`minWidth`/`minHeight` are both set to 1600 to approximate spec §11.9's
+"longest edge ≤ 1600px" — `flutter_image_compress`'s actual resize
+algorithm scales to the given bounds while preserving aspect ratio; it
+doesn't expose a literal "cap the longest edge" parameter. This is the
+standard usage pattern for this plugin across the ecosystem. T-10.1's
+"4 MB photo → <400 KB" acceptance is verified live on-device (Gate 10),
+not by a unit test — there's no real multi-MB JPEG fixture in the repo,
+and faking one wouldn't exercise the actual compressor anyway (the unit
+tests substitute it out).
+
+### `has_receipt` is maintained via `ExpenseRepository.setHasReceipt`, not owned by `AttachmentRepository`
+
+`expenses.has_receipt` is a plain, non-generated column (§6.4) — nothing
+server-side keeps it in sync with the `attachments` table, and the Expense
+List's "only with receipts" filter (T-5.8) queries it directly rather than
+joining attachments. `AttachmentRepository` doesn't touch the `expenses`
+table itself; it calls `ExpenseRepository.setHasReceipt(expenseId, value)`,
+which loads the current row and re-saves it through the existing
+`update()` path (bumping `updated_at`, re-enqueuing the full row). This is
+the same "reach into the DAO/repository you need directly" pattern
+`CategoryRepository.delete()`'s usage guard already established, rather
+than introducing a two-way dependency between the two repositories.
+
+Consequence worth naming: attaching or removing a receipt bumps the
+expense's `updated_at`, which is one more thing that can race a concurrent
+edit under D12's last-write-wins. Accepted as no worse than any other
+field edit in this app.
+
+### Attachment deletion cascade lives in `ExpenseRepository`, not `AttachmentRepository`
+
+T-10.5 requires deleting an expense to cascade-delete its attachments (no
+orphan rows). `ExpenseRepository.delete()` reaches directly into
+`_db.attachmentDao`/`_db.outboxDao` to soft-delete every active attachment
+and enqueue its removal, rather than depending on `AttachmentRepository`
+for this — same precedent as the `has_receipt` decision above and as
+`CategoryRepository`'s existing usage-guard.
+
+### Storage object deletion happens inside `OutboxProcessor`, is best-effort, and Diagnostics isn't built yet
+
+Spec §11.9: "Deleting an expense soft-deletes its attachments and enqueues
+storage deletions. Orphaned storage objects are cleaned by a manual admin
+action in Settings → Diagnostics (v1 does not run a scheduled job)." Read
+this as: the outbox `delete` op for an `attachment` entity should attempt
+to remove the actual Storage object (not just tombstone the row), with the
+Diagnostics sweep existing only as a backstop for whatever that attempt
+fails to catch (offline at delete time and the retry chain still fails,
+etc).
+
+Implemented in `OutboxProcessor._processEntry`'s `delete` case: for
+`entity == 'attachment'`, best-effort `client.storage.from('receipts')
+.remove([storagePath])` before the row's `pushSoftDelete` — wrapped in its
+own try/catch so a failed storage delete never blocks the row tombstone
+from propagating (that's the actually load-bearing part; a lingering
+Storage object is just wasted space until cleaned up). The "Diagnostics →
+list orphaned objects" admin screen itself is genuinely Phase 14 work
+(Settings, admin, diagnostics) and was **not** built now — out of phase
+order, and Phase 10's own acceptance criteria don't require it.
+
+Not unit-tested: mocking `SupabaseClient.storage.from(...).remove(...)`
+with mocktail requires stubbing a getter chain through `StorageFileApi`,
+which adds real fragility for a path that's already wrapped in a
+swallow-and-log try/catch (i.e. it cannot break the outbox's actual
+job — draining the queue — even if the storage call throws or is
+unstubbed). Covered by Gate 10's live verification instead, same
+precedent as the recurring-posting engine's notification checks in Gate 8.
+
+### Signed URLs, not `StorageFileApi.download()`
+
+§8's locked client rule is explicit: "Images are fetched with signed URLs
+(`createSignedUrl`, 1 hour TTL), never public URLs." `supabase_flutter`
+also exposes a `download()` method that fetches authenticated bytes
+directly without a literal signed URL — simpler to call, but not what the
+spec names. `AttachmentRepository.resolveLocalFile()` follows the spec
+literally: `createSignedUrl` then a plain `dart:io HttpClient` GET
+(`consolidateHttpClientResponseBytes` from `package:flutter/foundation.dart`
+turns the response into bytes) — no new package dependency for something
+`dart:io` already covers.
+
+### No iOS Info.plist changes
+
+The `ios/` platform directory was deliberately dropped earlier in the
+build (Android-only for now — see the Phase 0/Gate 0 entries). Spec
+§16.3's `NSCameraUsageDescription`/`NSPhotoLibraryUsageDescription` strings
+have nowhere to go until iOS work resumes; only `AndroidManifest.xml`
+gained the `CAMERA` permission this phase.
+
+### Attachment domain model grew an `isDirty` field
+
+`Attachment` (unlike the other syncable domain models until now) had no
+local-only dirty flag — nothing needed it before the expense detail
+screen's "upload pending" badge (spec §11.9's last line: "the thumbnail
+shows an 'upload pending' badge"). Added the same way `Expense.isDirty`
+already works: `@JsonKey(includeToJson: false, includeFromJson: false)`,
+populated by `AttachmentRowMapper.toDomain()` from the Drift row's
+`is_dirty` column.
+
+## 2026-09-05 — Gate 10 live two-device verification
+
+Ran the actual Gate 10 acceptance test live: two real emulators
+(`kharcha_test` = Vineet/admin, `kharcha_test_2` = Rupesh/member) against
+the real Supabase project. Device 2 was taken fully offline (`svc wifi
+disable` + `svc data disable`, same technique as Gate 3), a new expense was
+created and a receipt photo attached entirely offline, then reconnected.
+This surfaced three real bugs — two fixed now, one documented but
+deliberately not fixed this session (see below) — before the core
+acceptance ("capture offline → reconnect → the image is visible on a
+second device") was confirmed working end-to-end.
+
+### Bug found & fixed — a push's CAS base was stamped from the client's stale payload, not the server's actual stored value
+
+**Symptom:** created an expense offline, then immediately attached a
+receipt (a second, distinct edit to the same row — `AttachmentRepository`
+calling `ExpenseRepository.setHasReceipt(true)`). After reconnecting, both
+outbox entries for the expense drained without error, but `has_receipt`
+came back `false` — the second edit was silently discarded with no
+conflict logged anywhere.
+
+**Root cause:** Postgres's `touch_updated_at()` trigger does
+`updated_at := GREATEST(now(), incoming)`. After being offline for any
+real stretch, the server's `now()` is later than the client's claimed
+`updated_at`, so the trigger silently advances it. `_pushUpsertWithCas`
+(the Gate 4 CAS mechanism) used to call
+`markSynced(_updatedAtOf(payload))` on a successful push — i.e. it trusted
+the *payload's own claimed* `updated_at`, not what the server actually
+ended up storing. So after the first queued upsert pushed, the client's
+recorded `base_updated_at` was already wrong. When the second queued
+upsert (the `has_receipt` change) pushed next, its CAS
+(`.eq('updated_at', wrongBase)`) mismatched against the real server value.
+Because the first push's `markSynced` had already (wrongly) cleared
+`is_dirty`, the conflict-resolution code read "not dirty" and concluded
+there was nothing local to protect — so it silently adopted the remote
+(stale, `has_receipt = false`) row instead of retrying.
+
+**Fix:** `TableRemoteDataSource.upsertIfBaseMatches()` now returns
+`Future<DateTime?>` — the row's actual resulting `updated_at` (via a
+trailing `.select('updated_at')` on both the unconditional `upsert()` and
+the conditional `update()`), or `null` for a genuine CAS mismatch — instead
+of `Future<bool>`. `_pushUpsertWithCas` stamps `base_updated_at` from that
+real value, never from the payload. `test/unit/sync/push_conflict_resolution_test.dart`
+gained a dedicated regression test simulating exactly this: two sequential
+`pushUpsert` calls for the same row, where the server-returned value
+legitimately differs from what each payload claimed — both edits now
+survive.
+
+### Bug found & fixed — `local_updated_at` was never populated on an ordinary edit, silently defeating the Gate 4 conflict fix and crashing the sync loop
+
+While investigating the bug above, found a second, more severe defect: **every** entity mapper's `toCompanion(dirty: true)`
+(`expense_mapper.dart`, `income_mapper.dart`, `category_mapper.dart`,
+`payment_method_mapper.dart`, `budget_mapper.dart`,
+`recurring_rule_mapper.dart`, `attachment_mapper.dart`) left
+`local_updated_at` absent from the companion. Since `upsert()` is a plain
+`insertOnConflictUpdate`, an absent column is never written — so
+`local_updated_at` stayed `null` forever on every entity, for every write,
+except a soft-delete (`ExpenseDao.softDelete` etc. are the only call sites
+that ever set it).
+
+**Consequence #1 (silent, no crash):** the entire Gate 4 CAS-conflict
+mechanism's `localIsNewer` check
+(`meta.isDirty && meta.localUpdatedAt != null && meta.localUpdatedAt!.isAfter(remoteUpdatedAt)`)
+can never be true if `localUpdatedAt` is always null — a genuinely newer
+local edit that loses a CAS race could never be recognised as such, and
+would always be silently overwritten by whatever's on the server. The
+Gate 4 fix's core promise ("never silently overwritten by push order") was
+dead code in production from the moment it shipped, only masked because
+its own tests construct `_LocalSyncMeta`/local rows with `localUpdatedAt`
+set explicitly by hand.
+
+**Consequence #2 (crash, found live):** `_logConflictLoss` — called from
+both `_pushUpsertWithCas` and every entity's `pullApply` — force-unwrapped
+`meta!.localUpdatedAt!` / `local!.localUpdatedAt!` to build its log
+message. Once a dirty row with a null `localUpdatedAt` actually hit a CAS
+mismatch (exactly what consequence #1 permits), this threw a `TypeError`
+("Null check operator used on a null value"), caught by
+`OutboxProcessor`'s generic handler and misreported to the user as
+"Something went wrong. Please try again." — and because the exception was
+thrown *before* `applyRemote()` ran, the row never actually resolved: it
+retried forever, identically, every cycle. Confirmed via a real
+`ws://.../ws` VM-service connection (see below) reading the actual
+exception and stack trace off the running app — `AppLogger`'s messages go
+through `dart:developer`'s `log()`, which **does not appear in `adb
+logcat`** for a plain installed APK; a small standalone `dart:io
+WebSocket` script subscribing to the VM service's `Logging`/`Stdout`
+streams was the only way to see the real exception instead of
+`ErrorMapper`'s deliberately-generic user-facing message.
+
+**Fix (two parts):**
+1. Every affected mapper's `toCompanion()` now sets
+   `localUpdatedAt: dirty ? Value(DateTime.now().toUtc()) : const Value.absent()`
+   — mirroring what `softDelete()` already did. Covered by
+   `test/unit/data/mapper_local_updated_at_test.dart` (one test per
+   entity).
+2. `_logConflictLoss`'s `localUpdatedAt` parameter is now `DateTime?`
+   (formats as "unknown time" when absent) instead of force-unwrapping —
+   defensive on top of fix #1, since a row dirtied by an already-installed
+   build before this fix still has `localUpdatedAt = null` and must not
+   crash the sync loop the first time it hits a conflict. Covered by a new
+   test in `push_conflict_resolution_test.dart`.
+
+With both fixes, a genuine local-newer-than-remote conflict now correctly
+throws `SyncConflictRetryException` (the intended, benign retry path) and
+converges on the next attempt — confirmed live via the same VM-service log
+tail.
+
+### Bug found, NOT fixed this session — `base_updated_at`'s round-trip through Drift loses sub-second precision, so a CAS retry can loop forever
+
+While confirming the fix above live, one specific expense's `has_receipt`
+push kept retrying with `SyncConflictRetryException` indefinitely — the
+*intended* retry path (not a crash), but it never actually converged.
+Root cause: `base_updated_at` is a Drift `DateTimeColumn`, stored as a
+plain integer **seconds**-since-epoch
+(`sqlite3 ... "select base_updated_at, typeof(base_updated_at) from
+expenses"` → `1788594865|integer`, i.e. whole seconds). Postgres's
+`timestamptz` has microsecond precision, and `now()` essentially never
+lands on an exact second boundary. So: fetch the server's row →
+`DateTime.parse(...)` retains microseconds → store as `base_updated_at` →
+**Drift truncates to whole seconds on write** → next CAS attempt sends
+`.eq('updated_at', truncated.toIso8601String())` → server's actual stored
+value still has its original microseconds → never matches → mismatch →
+re-fetch → re-store (still truncated) → repeat forever. This isn't
+specific to receipts or to today's other two fixes — it's a latent defect
+in the Gate 4 CAS design itself, and would affect **any** entity the
+moment it needs a second real conflict-resolution cycle (as opposed to a
+first, unconditional `expectedBase == null` push, which never compares
+anything).
+
+**Why not fixed now:** a correct fix needs `base_updated_at`'s round-trip
+to preserve full Postgres precision — either storing it as raw ISO-8601
+`TEXT` instead of a lossy `DateTimeColumn`, or reconfiguring Drift's
+DateTime storage mode app-wide — either of which is a schema migration
+touching all 7 syncable tables. That's a bigger, riskier change than is
+safe to make blind at the tail end of an already-long live-debugging
+session; it deserves its own careful pass (migration + backfill + a test
+against a hand-built pre-migration database, same precedent as
+`migration_v2_to_v3_test.dart`).
+
+**Current state:** the one test expense that hit this (`Groceries`, ₹250,
+Rupesh) is left with a permanently-retrying `has_receipt` push on device
+2's local outbox — harmless (capped exponential backoff, no data
+corruption, doesn't block any other entity's sync) but it will never
+converge until this is fixed. Deliberately not cleaned up by force-editing
+the local database, since that risks colliding with the same precision
+bug in a worse way (e.g. resurrecting a soft-deleted row — see the
+reasoning trail in-session). **Follow-up work, tracked here since there's
+no issue tracker**: fix the precision loss, then confirm this specific row
+converges and delete the test expense.
+
+### Bug found, unrelated, NOT fixed — Dashboard per-member row crashes on tap
+
+Twice during this session, tapping a member's row in the Dashboard's "Per
+member" card (spec §6.3's "tap filters the Expense List to that member")
+crashed with `Tried to modify a provider while the widget tree was
+building.` — a Riverpod state-mutation-during-build error, not a null
+crash. This is unrelated to Phase 10/Receipts (nothing this phase touched
+the Dashboard or that cross-tab filter handoff) — pre-existing since
+Phase 6 (T-6.3). Not investigated further; noted here so it isn't
+mistaken for a Gate 10 regression. Worth its own root-cause pass — likely
+a `ref.read(...)`/provider write happening synchronously inside a tap
+handler that fires during the same frame as a `StatefulShellRoute` branch
+switch.
+
+### Debugging technique worth keeping — reading `dart:developer` logs from an installed APK
+
+`AppLogger` (and any `debugPrint`/`FlutterError` output that isn't a raw
+crash) does not appear in `adb logcat` for an app launched via `adb install`
++ `am start` — `developer.log()` only reaches a **connected** Dart VM
+service client (DevTools, or `flutter attach`), not the Android log
+buffer. The APK's own logcat always prints a `Dart VM service is
+listening on http://127.0.0.1:<port>/<token>/` line on startup; from
+there: `adb forward tcp:<port> tcp:<port>`, then either `flutter attach
+-d <device> --debug-uri http://127.0.0.1:<port>/<token>/` (re-mints a
+fresh, forwardable URI in its own output), or connect a raw
+`dart:io WebSocket` to the `.../ws` endpoint and send `{"method":
+"streamListen", "params": {"streamId": "Logging"}}` (JSON-RPC 2.0) to get
+every `AppLogger`/uncaught-exception record with its real stack trace,
+independent of `ErrorMapper`'s deliberately-generic user-facing message.
+This is how every exact root cause in this session's three bugs was
+actually found — the sqlite `outbox_entries.last_error` column and the
+in-app error banner only ever show the sanitised `Failure.message`.
+
+### Live verification (Gate 10)
+
+`fvm flutter analyze --fatal-infos` clean; `fvm flutter test` green at 196
+tests (8 new this phase: 5 in `attachment_repository_test.dart`, 1 new
+regression case in `push_conflict_resolution_test.dart` plus 1 rewritten
+for the `DateTime?` signature change, 7 in the new
+`mapper_local_updated_at_test.dart`). **Live-verified** on two real
+Android emulators against the real Supabase project: Rupesh (member),
+fully offline (`svc wifi/data disable`, confirmed 0 connected networks),
+created a ₹250 "Groceries" expense and attached a photo from the gallery —
+both the expense and the compressed receipt (712 KB source → 151 KB
+cached file, well under the 400 KB target) saved locally with the correct
+`is_dirty`/`pending` bookkeeping and the correct
+`<household_id>/<expense_id>/<attachment_id>.jpg` storage path. Reconnected
+— the attachment uploaded and synced cleanly. Vineet (admin), on a
+completely separate emulator, opened the same expense from the Expense
+List and saw the receipt thumbnail (downloaded via signed URL and cached),
+opened the full-screen viewer, and saw the share button — confirming
+T-10.4's resolution order and cross-device visibility end-to-end. Gate
+10's literal acceptance text ("Capture offline → reconnect → the image is
+visible on a second device") is satisfied. Status held at **partial**
+rather than **passed**, pending the sub-second-precision CAS fix above
+(not a receipts-specific gap, but it currently means at least one
+receipts-adjacent field — `has_receipt` — cannot be relied on to converge
+after a second edit) and a fresh live pass once that's fixed.

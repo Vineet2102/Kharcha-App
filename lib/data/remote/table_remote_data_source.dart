@@ -36,23 +36,43 @@ class TableRemoteDataSource {
   /// Gate 4 2026-09-05 fix): succeeds unconditionally when [expectedBase] is
   /// null (no confirmed server row yet — a plain create), otherwise only
   /// when the row's current `updated_at` still equals [expectedBase].
-  /// Returns whether the write actually happened — `false` means someone
-  /// else moved the row since, a genuine conflict for the caller to resolve.
-  Future<bool> upsertIfBaseMatches(
+  /// Returns the row's actual `updated_at` after a successful write, or
+  /// `null` if someone else moved the row since — a genuine conflict for the
+  /// caller to resolve.
+  ///
+  /// Deliberately returns the *server's* resulting `updated_at`, not the
+  /// payload's claimed one: `touch_updated_at()` does
+  /// `GREATEST(now(), incoming)`, so after any offline stretch the server
+  /// silently advances the timestamp past what the client sent. A caller
+  /// that trusted the payload's value instead (as this used to) would record
+  /// the wrong "known-good base" for its next push — and a second edit to
+  /// the same row still queued in the same drain pass would then spuriously
+  /// CAS-mismatch against the real server value and get discarded as if it
+  /// were a genuine remote conflict. See docs/DECISIONS.md, Gate 10.
+  Future<DateTime?> upsertIfBaseMatches(
     Map<String, dynamic> payload,
     DateTime? expectedBase,
   ) async {
     if (expectedBase == null) {
-      await _client.from(table).upsert(payload, onConflict: 'id');
-      return true;
+      final rows = await _client
+          .from(table)
+          .upsert(payload, onConflict: 'id')
+          .select('updated_at');
+      return _serverUpdatedAt(rows);
     }
     final updated = await _client
         .from(table)
         .update(payload)
         .eq('id', payload['id'] as String)
         .eq('updated_at', expectedBase.toIso8601String())
-        .select('id');
-    return (updated as List).isNotEmpty;
+        .select('updated_at');
+    return _serverUpdatedAt(updated);
+  }
+
+  DateTime? _serverUpdatedAt(dynamic rows) {
+    final list = List<Map<String, dynamic>>.from(rows as List);
+    if (list.isEmpty) return null;
+    return DateTime.parse(list.first['updated_at'] as String).toUtc();
   }
 
   /// The current server row for [id], or null if it no longer exists

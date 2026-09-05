@@ -112,9 +112,21 @@ class ExpenseRepository {
     ),
   );
 
+  /// Flips the denormalised `has_receipt` flag (spec §11.9/T-10.3), which
+  /// backs the Expense List's "only with receipts" filter — it's plain data
+  /// on the expense row, not derived from `attachments` at query time, so
+  /// `AttachmentRepository` calls this whenever a receipt is added or the
+  /// last one on an expense is removed.
+  Future<void> setHasReceipt(String id, bool value) async {
+    final expense = await findById(id);
+    if (expense == null || expense.hasReceipt == value) return;
+    await update(expense.copyWith(hasReceipt: value));
+  }
+
   Future<void> delete(String id) async {
     final now = DateTime.now().toUtc();
     await _db.expenseDao.softDelete(id, now);
+    await _cascadeDeleteAttachments(id, now);
     await _db.outboxDao.enqueue(
       OutboxEntriesCompanion.insert(
         id: _uuid.v4(),
@@ -126,6 +138,29 @@ class ExpenseRepository {
       ),
     );
     _triggerSync();
+  }
+
+  /// T-10.5: deleting an expense soft-deletes every attachment of it and
+  /// enqueues its removal, so no attachment row is left dangling on a
+  /// deleted expense. `AttachmentRepository` isn't a dependency of this
+  /// repository — this mirrors `CategoryRepository.delete()`'s own
+  /// cross-entity usage check, which reaches straight into the DAOs it
+  /// needs rather than depending on another repository.
+  Future<void> _cascadeDeleteAttachments(String expenseId, DateTime now) async {
+    final rows = await _db.attachmentDao.findActiveForExpense(expenseId);
+    for (final row in rows) {
+      await _db.attachmentDao.softDelete(row.id, now);
+      await _db.outboxDao.enqueue(
+        OutboxEntriesCompanion.insert(
+          id: _uuid.v4(),
+          entity: 'attachment',
+          entityId: row.id,
+          op: 'delete',
+          payload: '{}',
+          createdAt: now,
+        ),
+      );
+    }
   }
 
   /// Undo for the 5 s "Saved ✓" snackbar (spec §11.2). If the create's

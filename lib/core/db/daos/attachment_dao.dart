@@ -16,6 +16,23 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
+  Future<List<Attachment>> findActiveForExpense(String expenseId) =>
+      (select(attachments)
+            ..where((t) => t.expenseId.equals(expenseId) & t.deletedAt.isNull()))
+          .get();
+
+  /// Backs the "max 3 receipts per expense" rule (spec §11.9) and
+  /// `has_receipt` maintenance on delete.
+  Future<int> countForExpense(String expenseId) async {
+    final query = selectOnly(attachments)
+      ..addColumns([attachments.id.count()])
+      ..where(
+        attachments.expenseId.equals(expenseId) & attachments.deletedAt.isNull(),
+      );
+    final row = await query.getSingle();
+    return row.read(attachments.id.count()) ?? 0;
+  }
+
   Future<Attachment?> findById(String id) =>
       (select(attachments)..where((t) => t.id.equals(id))).getSingleOrNull();
 

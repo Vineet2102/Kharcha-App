@@ -139,9 +139,17 @@ Future<void> _pushUpsertWithCas({
 }) async {
   final id = payload['id'] as String;
   final meta = await loadMeta();
-  final ok = await remote.upsertIfBaseMatches(payload, meta?.baseUpdatedAt);
-  if (ok) {
-    await markSynced(_updatedAtOf(payload));
+  final serverUpdatedAt = await remote.upsertIfBaseMatches(
+    payload,
+    meta?.baseUpdatedAt,
+  );
+  if (serverUpdatedAt != null) {
+    // The server's own `touch_updated_at()` trigger may have advanced this
+    // past the payload's claimed value (GREATEST(now(), incoming)) — always
+    // trust what the server actually stored, never the payload, so the next
+    // push's CAS check compares against reality (see docs/DECISIONS.md,
+    // Gate 10).
+    await markSynced(serverUpdatedAt);
     return;
   }
 
@@ -168,7 +176,7 @@ Future<void> _pushUpsertWithCas({
     _logConflictLoss(
       entityKey,
       id,
-      localUpdatedAt: meta!.localUpdatedAt!,
+      localUpdatedAt: meta!.localUpdatedAt,
       remoteUpdatedAt: remoteUpdatedAt,
     );
   }
@@ -187,14 +195,21 @@ bool _localWins(
     localUpdatedAt != null &&
     localUpdatedAt.isAfter(remoteUpdatedAt);
 
+/// [localUpdatedAt] is nullable defensively: it should always be set on a
+/// dirty row (see `docs/DECISIONS.md`, Gate 10 — every mapper's
+/// `toCompanion(dirty: true)` now stamps it), but a row dirtied by an
+/// earlier build before that fix, or any future write path that forgets to,
+/// must still log-and-move-on rather than crash the sync loop on a null
+/// check.
 void _logConflictLoss(
   String entityKey,
   String id, {
-  required DateTime localUpdatedAt,
+  required DateTime? localUpdatedAt,
   required DateTime remoteUpdatedAt,
 }) {
+  final editedAt = localUpdatedAt?.toIso8601String() ?? 'unknown time';
   AppLogger.instance.warn(
-    'Sync conflict: local $entityKey/$id (edited $localUpdatedAt) was overwritten by a newer '
+    'Sync conflict: local $entityKey/$id (edited $editedAt) was overwritten by a newer '
     'remote change ($remoteUpdatedAt) — the unpushed local edit was discarded (D12).',
   );
 }
@@ -335,7 +350,7 @@ class CategorySyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -422,7 +437,7 @@ class PaymentMethodSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -511,7 +526,7 @@ class ExpenseSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -597,7 +612,7 @@ class IncomeSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -683,7 +698,7 @@ class BudgetSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -769,7 +784,7 @@ class RecurringRuleSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
@@ -857,7 +872,7 @@ class AttachmentSyncAdapter extends EntitySyncAdapter {
       _logConflictLoss(
         entityKey,
         id,
-        localUpdatedAt: local!.localUpdatedAt!,
+        localUpdatedAt: local!.localUpdatedAt,
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
