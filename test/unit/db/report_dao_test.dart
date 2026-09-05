@@ -18,6 +18,7 @@ void main() {
     required DateTime spentOn,
     String? categoryId,
     String? paymentMethodId,
+    String? merchant,
     bool deleted = false,
   }) => db.expenseDao.upsert(
     ExpensesCompanion.insert(
@@ -27,6 +28,7 @@ void main() {
       amountPaise: amountPaise,
       categoryId: Value(categoryId),
       paymentMethodId: Value(paymentMethodId),
+      merchant: merchant == null ? const Value.absent() : Value(merchant),
       spentAt: spentOn,
       spentOn: spentOn,
       deletedAt: Value(deleted ? spentOn : null),
@@ -66,6 +68,7 @@ void main() {
       spentOn: DateTime.utc(2026, 9, 1),
       categoryId: 'c1',
       paymentMethodId: 'pm1',
+      merchant: 'Reliance Fresh',
     );
     await insertExpense(
       id: 'e2',
@@ -74,6 +77,7 @@ void main() {
       spentOn: DateTime.utc(2026, 9, 10),
       categoryId: 'c2',
       paymentMethodId: 'pm2',
+      merchant: 'Cafe Coffee Day',
     );
     await insertExpense(
       id: 'e3',
@@ -82,6 +86,7 @@ void main() {
       spentOn: DateTime.utc(2026, 9, 15),
       categoryId: 'c1',
       paymentMethodId: 'pm1',
+      merchant: 'Reliance Fresh',
     );
     await insertExpense(
       id: 'e4-uncategorised',
@@ -274,5 +279,130 @@ void main() {
       'e3', // 2026-09-15
       'e2', // 2026-09-10
     ]);
+  });
+
+  group('watchMonthlyTrend (T-11.1)', () {
+    test('returns exactly [months] entries, zero-filled where there is no data', () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchMonthlyTrend(householdId: 'h1', endMonth: september, months: 12)
+          .first;
+      expect(totals, hasLength(12));
+      expect(totals.first.month, DateTime.utc(2025, 10));
+      expect(totals.last.month, september);
+    });
+
+    test('the current and previous month reconcile with the plain totals', () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchMonthlyTrend(householdId: 'h1', endMonth: september, months: 12)
+          .first;
+      final byMonth = {for (final t in totals) t.month: t};
+      expect(byMonth[september]!.expensePaise, 10000 + 5000 + 20000 + 3000);
+      expect(byMonth[september]!.incomePaise, 50000);
+      expect(byMonth[DateTime.utc(2026, 8)]!.expensePaise, 999999);
+      expect(byMonth[DateTime.utc(2026, 8)]!.incomePaise, 999);
+    });
+
+    test('a month with no rows at all is zero, not missing', () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchMonthlyTrend(householdId: 'h1', endMonth: september, months: 12)
+          .first;
+      final july = totals.firstWhere((t) => t.month == DateTime.utc(2026, 7));
+      expect(july.expensePaise, 0);
+      expect(july.incomePaise, 0);
+    });
+  });
+
+  test(
+    'watchMemberMonthlyTrend groups expense totals by month and member',
+    () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchMemberMonthlyTrend(
+            householdId: 'h1',
+            endMonth: september,
+            months: 2,
+          )
+          .first;
+      expect(
+        totals.map((t) => (t.month, t.userId, t.amountPaise)).toSet(),
+        {
+          (DateTime.utc(2026, 8), 'u1', 999999),
+          (september, 'u1', 15000),
+          (september, 'u2', 23000),
+        },
+      );
+    },
+  );
+
+  test(
+    'watchCategoryMonthlyTrend groups by month and category, excluding uncategorised',
+    () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchCategoryMonthlyTrend(
+            householdId: 'h1',
+            endMonth: september,
+            months: 1,
+          )
+          .first;
+      expect(totals.map((t) => (t.month, t.categoryId, t.amountPaise)).toSet(), {
+        (september, 'c1', 30000),
+        (september, 'c2', 5000),
+      });
+    },
+  );
+
+  test(
+    'watchExpenseByWeekday sums non-deleted expenses per calendar weekday',
+    () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchExpenseByWeekday(
+            householdId: 'h1',
+            start: september,
+            end: october,
+          )
+          .first;
+      final byWeekday = {for (final t in totals) t.weekday: t.totalPaise};
+
+      // Independently hand-computed from the seed's real calendar dates
+      // (e5-deleted on 9/5 must not contribute to its weekday).
+      final expected = <int, int>{};
+      void add(DateTime d, int paise) =>
+          expected[d.weekday] = (expected[d.weekday] ?? 0) + paise;
+      add(DateTime.utc(2026, 9, 1), 10000);
+      add(DateTime.utc(2026, 9, 10), 5000);
+      add(DateTime.utc(2026, 9, 15), 20000);
+      add(DateTime.utc(2026, 9, 20), 3000);
+      expect(byWeekday, expected);
+    },
+  );
+
+  test('watchTopMerchants groups by merchant, excluding blank merchants', () async {
+    await seed();
+    final totals = await db.reportDao
+        .watchTopMerchants(householdId: 'h1', start: september, end: october)
+        .first;
+    expect(totals.map((g) => (g.key, g.amountPaise)).toList(), [
+      ('Reliance Fresh', 30000),
+      ('Cafe Coffee Day', 5000),
+    ]);
+  });
+
+  test('watchTopMerchants respects limit', () async {
+    await seed();
+    final totals = await db.reportDao
+        .watchTopMerchants(
+          householdId: 'h1',
+          start: september,
+          end: october,
+          limit: 1,
+        )
+        .first;
+    expect(totals, hasLength(1));
+    expect(totals.single.key, 'Reliance Fresh');
   });
 }

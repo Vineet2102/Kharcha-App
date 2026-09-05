@@ -73,6 +73,80 @@ class ReportRepository {
   }) => _db.reportDao
       .watchRecentExpenses(householdId, limit: limit)
       .map((rows) => rows.map((r) => r.toDomain()).toList());
+
+  /// Every category's expense total for the month, unranked and unlimited —
+  /// the Analytics donut chart (spec §11.10, T-11.1) buckets these into top
+  /// 8 + "Other" itself, unlike the Dashboard's fixed-`limit` top-categories
+  /// card.
+  Stream<List<GroupedTotal>> watchAllCategoryTotals({
+    required String householdId,
+    required DateTime monthStart,
+  }) => _db.reportDao.watchExpenseByCategory(
+    householdId: householdId,
+    start: monthStart,
+    end: AppTime.monthAfter(monthStart, 1),
+  );
+
+  /// Household expense + income totals for [months] consecutive months
+  /// ending at [endMonth] — the Analytics monthly trend chart (T-11.1).
+  Stream<List<MonthlyTotal>> watchMonthlyTrend({
+    required String householdId,
+    required DateTime endMonth,
+    int months = 12,
+  }) => _db.reportDao.watchMonthlyTrend(
+    householdId: householdId,
+    endMonth: endMonth,
+    months: months,
+  );
+
+  /// Per-member expense totals for [months] consecutive months ending at
+  /// [endMonth] — the Analytics member-comparison grouped bar chart
+  /// (T-11.1).
+  Stream<List<MemberMonthTotal>> watchMemberMonthlyTrend({
+    required String householdId,
+    required DateTime endMonth,
+    int months = 6,
+  }) => _db.reportDao.watchMemberMonthlyTrend(
+    householdId: householdId,
+    endMonth: endMonth,
+    months: months,
+  );
+
+  /// Per-category expense totals for [months] consecutive months ending at
+  /// [endMonth] — the Analytics month-over-month table (T-11.1).
+  Stream<List<CategoryMonthTotal>> watchCategoryMonthlyTrend({
+    required String householdId,
+    required DateTime endMonth,
+    int months = 3,
+  }) => _db.reportDao.watchCategoryMonthlyTrend(
+    householdId: householdId,
+    endMonth: endMonth,
+    months: months,
+  );
+
+  /// Total expense spend per weekday for the month — the Analytics
+  /// day-of-week chart (T-11.1).
+  Stream<List<WeekdayTotal>> watchExpenseByWeekday({
+    required String householdId,
+    required DateTime monthStart,
+  }) => _db.reportDao.watchExpenseByWeekday(
+    householdId: householdId,
+    start: monthStart,
+    end: AppTime.monthAfter(monthStart, 1),
+  );
+
+  /// Top [limit] merchants by expense spend for the month — the Analytics
+  /// top-merchants list (T-11.1).
+  Stream<List<GroupedTotal>> watchTopMerchants({
+    required String householdId,
+    required DateTime monthStart,
+    int limit = 10,
+  }) => _db.reportDao.watchTopMerchants(
+    householdId: householdId,
+    start: monthStart,
+    end: AppTime.monthAfter(monthStart, 1),
+    limit: limit,
+  );
 }
 
 @Riverpod(keepAlive: true)

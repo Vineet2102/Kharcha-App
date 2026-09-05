@@ -1511,3 +1511,85 @@ in this same session) — but with materially higher confidence than
 before, since the CAS plumbing it depends on has now been shown to work
 correctly against the real Supabase project rather than only in the
 `push_conflict_resolution_test.dart` fakes.
+
+## 2026-09-06 — Phase 11 (Analytics)
+
+**Raw SQL for the multi-month aggregates, typed queries for everything
+else.** `ReportDao`'s existing single-period queries (household/member/
+category/payment-method totals) stayed as typed `selectOnly(...)` builders
+— same pattern since Phase 6. But the three genuinely *multi-month* charts
+(12-month trend, 6-month member comparison, 3-month category MoM table)
+needed a single query grouped by calendar month, and Drift's typed builder
+has no portable "group by month of a date column" expression. Rather than
+issue one query per month (12–36 separate `Stream`s that would then need
+error-prone client-side zipping to combine into one reactive chart), each
+uses a single `customSelect` with SQLite's `strftime('%Y-%m', col,
+'unixepoch')`. This only works because Drift's `DateTimeColumn` has stored
+as unix-epoch-**seconds** INTEGER by default since Phase 2 (never
+overridden via `DriftDatabaseOptions.storeDateTimeAsText`) — confirmed by
+grep before writing a line of SQL, and confirmed correct by 9 new DAO
+tests that actually exercise `strftime` against a real in-memory SQLite
+database rather than mocking it. Day-of-week grouping (`strftime('%w',
+...)`) has the same dependency. If a future migration ever turns on
+text-based date storage, every one of these five queries needs rewriting.
+
+**Weekday averaging is client-side, not SQL.** The day-of-week chart needs
+"average spend on a Tuesday", i.e. total ÷ *how many Tuesdays occurred in
+the period* — not ÷ the count of expense rows, which would just be "average
+per transaction". Counting calendar-weekday occurrences from period bounds
+is a 30-iteration loop in Dart (`AppTime`'s existing month-bounds helpers
+already give `[start, end)`); doing it in SQL would mean a second, uglier
+query solely to generate a weekday-occurrence calendar. `ReportDao` returns
+the raw per-weekday *totals* only; `_DayOfWeekChart` in
+`analytics_screen.dart` owns the averaging.
+
+**Payment-method split and top-merchants use plain widgets, not
+`fl_chart`.** Spec §11.10 calls the payment-method chart a "horizontal
+bar", but `fl_chart` 1.2.0's `BarChart` renders vertically only — there is
+no horizontal-orientation flag, only a whole-chart `rotationQuarterTurns`
+which would also rotate the axis labels and touch handling. Rather than
+fight the library (or add a second charting dependency for one chart),
+both use the same proportional-bar-row / ranked-list widgets the Dashboard
+already established for its per-member breakdown (Phase 6) — simpler, and
+visually consistent with the rest of the app.
+
+**Shared `MonthSelector`/`SectionCard` extraction.** Spec §11.10 says the
+month/range selector is "shared with the Dashboard" — not just
+conceptually similar, but literally the same picker so switching tabs
+keeps the same selected month. Since `dashboard_screen.dart`'s private
+`_MonthSelector`/`_MonthYearPickerDialog`/`_MonthCell` and
+`_DashboardCard`/`_EmptyCardBody` were already an exact byte-for-byte match
+for what Analytics needed, they were pulled out verbatim into
+`features/dashboard/widgets/month_selector.dart` (`MonthSelector`) and
+`section_card.dart` (`SectionCard`/`EmptySectionBody`) rather than
+duplicated a second time — both screens now import the same widgets and
+both watch the same `selectedMonthControllerProvider`.
+
+**Bug found & fixed**: the monthly trend chart's x-axis thins its labels
+to every other month once 12 months don't fit, but the naive `i.isOdd`
+check could land on the *last* index (the current month — the most
+relevant point on the whole chart) and hide it. Caught immediately on the
+first live screenshot on the `kharcha_test` emulator: September's spike
+had no "Sep" tick under it. Fixed by special-casing `isLast` so the final
+label always renders regardless of parity.
+
+### Live verification (Gate 11)
+
+`fvm flutter analyze --fatal-infos` clean; `fvm flutter test` green at 206
+tests (9 new in `report_dao_test.dart`). **Live-verified** on the
+`kharcha_test` emulator against the real Supabase project and the real
+household's live data (₹250 Groceries + ₹50 zomato expenses, ₹50,000
+income, all logged in September 2026): every one of the 7 charts'
+figures reconciled exactly against the Dashboard's own cards for the same
+period (donut 83%/₹250 + 17%/₹50 matching the Dashboard's top-categories
+card; payment-method split's Cash ₹250 + UPI ₹50 summing to the
+Dashboard's ₹300 spent; the trend chart's September point matching the
+Dashboard's income/expense figures exactly). Paged the shared month
+selector back to August 2026 (a real month with zero household activity)
+and confirmed all 7 cards render the "No data for this period" empty
+state cleanly — no crashes, no `NaN`, no infinite axes. Re-verified in
+dark mode too (`adb shell cmd uimode night yes` plus a full app restart,
+since a live theme-only broadcast wasn't picked up without one): every
+card's background, text, and every chart's line/bar/slice colours (all
+sourced from `Theme.of(context).colorScheme`, never a hardcoded
+light-only `Color`) stayed legible against the dark surface.

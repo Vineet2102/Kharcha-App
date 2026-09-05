@@ -24,6 +24,8 @@ import '../../../domain/models/report.dart';
 import '../../../routing/routes.dart';
 import '../../expenses/controllers/expense_list_preset_filter_controller.dart';
 import '../controllers/selected_month_controller.dart';
+import '../widgets/month_selector.dart';
+import '../widgets/section_card.dart';
 
 /// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5, T-8.4,
 /// T-9.5). Ships cards 1-6. Card 7 (the sync/offline banner) is already
@@ -36,7 +38,7 @@ class DashboardScreen extends ConsumerWidget {
     final month = ref.watch(selectedMonthControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: _MonthSelector(month: month)),
+      appBar: AppBar(title: MonthSelector(month: month)),
       body: RefreshIndicator(
         onRefresh: () => ref.read(syncEngineProvider).sync(),
         child: ListView(
@@ -81,7 +83,7 @@ class _PendingRecurringCard extends ConsumerWidget {
           ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
     if (pending.isEmpty) return const SizedBox.shrink();
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'Pending confirmations',
       onSeeAll: () => context.push(AppRoutes.recurring),
       child: Column(
@@ -152,162 +154,6 @@ class _PendingRecurringRowState extends ConsumerState<_PendingRecurringRow> {
   }
 }
 
-class _DashboardCard extends StatelessWidget {
-  const _DashboardCard({
-    required this.title,
-    required this.child,
-    this.onSeeAll,
-  });
-
-  final String title;
-  final Widget child;
-  final VoidCallback? onSeeAll;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                if (onSeeAll != null)
-                  TextButton(onPressed: onSeeAll, child: const Text('See all')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCardBody extends StatelessWidget {
-  const _EmptyCardBody(this.message);
-  final String message;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    message,
-    style: Theme.of(context).textTheme.bodyMedium
-        ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-  );
-}
-
-class _MonthSelector extends ConsumerWidget {
-  const _MonthSelector({required this.month});
-  final DateTime month;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(selectedMonthControllerProvider.notifier);
-    final isCurrentMonth = AppTime.isSameIstMonth(
-      month,
-      DateTime.now().toUtc(),
-    );
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          onPressed: controller.previousMonth,
-          tooltip: 'Previous month',
-        ),
-        Expanded(
-          child: TextButton(
-            onPressed: () async {
-              final picked = await showDialog<DateTime>(
-                context: context,
-                builder: (context) => _MonthYearPickerDialog(initial: month),
-              );
-              if (picked != null) controller.setMonth(picked);
-            },
-            child: Text(AppTime.monthLabel(month)),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          onPressed: isCurrentMonth ? null : controller.nextMonth,
-          tooltip: 'Next month',
-        ),
-      ],
-    );
-  }
-}
-
-class _MonthYearPickerDialog extends StatefulWidget {
-  const _MonthYearPickerDialog({required this.initial});
-  final DateTime initial;
-
-  @override
-  State<_MonthYearPickerDialog> createState() => _MonthYearPickerDialogState();
-}
-
-class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
-  late int _year = widget.initial.year;
-
-  @override
-  Widget build(BuildContext context) {
-    final canGoForward = _year < AppTime.nowIst().year;
-    return AlertDialog(
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => setState(() => _year--),
-          ),
-          Text('$_year'),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: canGoForward ? () => setState(() => _year++) : null,
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: 300,
-        child: GridView.count(
-          crossAxisCount: 3,
-          shrinkWrap: true,
-          childAspectRatio: 2,
-          children: [
-            for (var m = 1; m <= 12; m++) _MonthCell(year: _year, month: m),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-      ],
-    );
-  }
-}
-
-class _MonthCell extends StatelessWidget {
-  const _MonthCell({required this.year, required this.month});
-  final int year;
-  final int month;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = DateTime.utc(year, month);
-    final disabled = AppTime.isFutureMonth(value);
-    return TextButton(
-      onPressed: disabled ? null : () => Navigator.of(context).pop(value),
-      child: Text(AppTime.monthLabelShort(value).split(' ').first),
-    );
-  }
-}
-
 /// Card 1 (spec §11.4): total spent, total income, net saved, and a %
 /// change in spend vs the previous month.
 class _HouseholdSummaryCard extends ConsumerWidget {
@@ -319,7 +165,7 @@ class _HouseholdSummaryCard extends ConsumerWidget {
     final repo = ref.watch(reportRepositoryProvider);
     final previousMonth = AppTime.monthAfter(monthStart, -1);
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'This month',
       child: StreamBuilder<int>(
         stream: repo.watchExpenseTotal(
@@ -468,7 +314,7 @@ class _BudgetProgressCard extends ConsumerWidget {
     final budgets = budgetsAsync.value ?? const <domain.Budget>[];
     if (budgets.isEmpty) return const SizedBox.shrink();
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'Budgets',
       onSeeAll: () => context.push(AppRoutes.budgets),
       child: Column(
@@ -572,7 +418,7 @@ class _MemberBreakdownCard extends ConsumerWidget {
     final profiles = ref.watch(householdProfilesProvider).value ?? const [];
     final profilesById = {for (final p in profiles) p.id: p};
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'Per member',
       child: StreamBuilder<List<GroupedTotal>>(
         stream: repo.watchExpenseByMember(
@@ -582,7 +428,7 @@ class _MemberBreakdownCard extends ConsumerWidget {
         builder: (context, snapshot) {
           final totals = snapshot.data ?? const [];
           if (totals.isEmpty) {
-            return const _EmptyCardBody('No expenses logged this month yet.');
+            return const EmptySectionBody(message: 'No expenses logged this month yet.');
           }
           final householdTotal = totals.fold(
             0,
@@ -702,7 +548,7 @@ class _TopCategoriesCard extends ConsumerWidget {
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final categoriesById = {for (final c in categories) c.id: c};
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'Top categories',
       onSeeAll: () => context.go(AppRoutes.analytics),
       child: StreamBuilder<int>(
@@ -720,8 +566,8 @@ class _TopCategoriesCard extends ConsumerWidget {
             builder: (context, snapshot) {
               final totals = snapshot.data ?? const [];
               if (totals.isEmpty) {
-                return const _EmptyCardBody(
-                  'No categorised expenses this month yet.',
+                return const EmptySectionBody(
+                  message: 'No categorised expenses this month yet.',
                 );
               }
               return Column(
@@ -795,7 +641,7 @@ class _RecentActivityCard extends ConsumerWidget {
     final categoriesById = {for (final c in categories) c.id: c};
     final profilesById = {for (final p in profiles) p.id: p};
 
-    return _DashboardCard(
+    return SectionCard(
       title: 'Recent activity',
       child: StreamBuilder<List<domain.Expense>>(
         stream: repo.watchRecentExpenses(
@@ -804,7 +650,7 @@ class _RecentActivityCard extends ConsumerWidget {
         builder: (context, snapshot) {
           final recent = snapshot.data ?? const [];
           if (recent.isEmpty) {
-            return const _EmptyCardBody('No expenses logged yet.');
+            return const EmptySectionBody(message: 'No expenses logged yet.');
           }
           return Column(
             children: [
