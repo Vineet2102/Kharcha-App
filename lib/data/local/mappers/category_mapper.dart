@@ -26,7 +26,7 @@ extension CategoryRowMapper on Category {
 extension CategoryDomainMapper on domain.Category {
   CategoriesCompanion toCompanion({
     bool dirty = false,
-    DateTime? baseUpdatedAt,
+    String? baseUpdatedAt,
   }) => CategoriesCompanion(
     id: Value(id),
     householdId: Value(householdId),

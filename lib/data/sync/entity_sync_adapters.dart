@@ -94,7 +94,13 @@ class _LocalSyncMeta {
 
   final bool isDirty;
   final DateTime? localUpdatedAt;
-  final DateTime? baseUpdatedAt;
+
+  /// The server's raw ISO-8601 `updated_at` string as of the last confirmed
+  /// sync — kept as a string, never a `DateTime`, so it round-trips through
+  /// local storage and back into a push's CAS filter without ever losing
+  /// the microsecond precision Postgres actually stores (see
+  /// docs/DECISIONS.md, Gate 10 2026-09-05 fix).
+  final String? baseUpdatedAt;
 }
 
 /// Thrown when a push loses a compare-and-swap race but the local edit is
@@ -133,8 +139,8 @@ Future<void> _pushUpsertWithCas({
   required TableRemoteDataSource remote,
   required Map<String, dynamic> payload,
   required Future<_LocalSyncMeta?> Function() loadMeta,
-  required Future<void> Function(DateTime base) markSynced,
-  required Future<void> Function(DateTime base) updateBase,
+  required Future<void> Function(String base) markSynced,
+  required Future<void> Function(String base) updateBase,
   required Future<void> Function(Map<String, dynamic> remoteJson) applyRemote,
 }) async {
   final id = payload['id'] as String;
@@ -156,9 +162,11 @@ Future<void> _pushUpsertWithCas({
   final remoteJson = await remote.fetchById(id);
   if (remoteJson == null) {
     // The remote row vanished between the CAS attempt and this fetch —
-    // nothing left to compare against, so just push it.
-    await remote.upsert(payload);
-    await markSynced(_updatedAtOf(payload));
+    // nothing left to compare against, so just push it unconditionally
+    // (the same path a brand-new row takes) and trust whatever the server
+    // hands back this time, not the stale payload.
+    final base = await remote.upsertIfBaseMatches(payload, null);
+    await markSynced(base!);
     return;
   }
 
@@ -168,7 +176,7 @@ Future<void> _pushUpsertWithCas({
       meta!.localUpdatedAt != null &&
       meta.localUpdatedAt!.isAfter(remoteUpdatedAt);
   if (localIsNewer) {
-    await updateBase(remoteUpdatedAt);
+    await updateBase(remoteJson['updated_at'] as String);
     throw SyncConflictRetryException(entityKey, id);
   }
 
@@ -356,7 +364,7 @@ class CategorySyncAdapter extends EntitySyncAdapter {
     }
     await db.categoryDao.upsert(
       domain.Category.fromJson(json)
-          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -443,7 +451,7 @@ class PaymentMethodSyncAdapter extends EntitySyncAdapter {
     }
     await db.paymentMethodDao.upsert(
       domain.PaymentMethod.fromJson(json)
-          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -531,7 +539,7 @@ class ExpenseSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.expenseDao.upsert(
-      domain.Expense.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+      domain.Expense.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -617,7 +625,7 @@ class IncomeSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.incomeDao.upsert(
-      domain.Income.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+      domain.Income.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -703,7 +711,7 @@ class BudgetSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.budgetDao.upsert(
-      domain.Budget.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+      domain.Budget.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -790,7 +798,7 @@ class RecurringRuleSyncAdapter extends EntitySyncAdapter {
     }
     await db.recurringDao.upsert(
       domain.RecurringRule.fromJson(json)
-          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -878,7 +886,7 @@ class AttachmentSyncAdapter extends EntitySyncAdapter {
     }
     await db.attachmentDao.upsert(
       domain.Attachment.fromJson(json)
-          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 

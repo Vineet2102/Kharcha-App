@@ -253,7 +253,7 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
       );
 
   /// See `CategoryDao.markSyncedWithBase`.
-  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+  Future<void> markSyncedWithBase(String id, String baseUpdatedAt) =>
       (update(expenses)..where((t) => t.id.equals(id))).write(
         ExpensesCompanion(
           isDirty: const Value(false),
@@ -263,7 +263,7 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
       );
 
   /// See `CategoryDao.updateBaseUpdatedAt`.
-  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+  Future<void> updateBaseUpdatedAt(String id, String baseUpdatedAt) =>
       (update(expenses)..where((t) => t.id.equals(id))).write(
         ExpensesCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
       );

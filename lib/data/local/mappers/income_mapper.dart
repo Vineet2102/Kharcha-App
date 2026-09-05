@@ -26,7 +26,7 @@ extension IncomeRowMapper on Income {
 }
 
 extension IncomeDomainMapper on domain.Income {
-  IncomesCompanion toCompanion({bool dirty = false, DateTime? baseUpdatedAt}) =>
+  IncomesCompanion toCompanion({bool dirty = false, String? baseUpdatedAt}) =>
       IncomesCompanion(
         id: Value(id),
         householdId: Value(householdId),

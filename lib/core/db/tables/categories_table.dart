@@ -21,7 +21,15 @@ class Categories extends Table {
   /// matched the server (a pull, or this device's own successful push) —
   /// the compare-and-swap base for the next push (spec §13 Test 5 / D12).
   /// Null means "no confirmed server state yet" (a locally-created row).
-  DateTimeColumn get baseUpdatedAt => dateTime().nullable()();
+  ///
+  /// Stored as the server's raw ISO-8601 string, verbatim — never parsed
+  /// into a `DateTime` and reformatted. Postgres's `timestamptz` has
+  /// microsecond precision; a `DateTimeColumn` here would silently round
+  /// to whole seconds on every write, so a push's `.eq('updated_at', ...)`
+  /// compare-and-swap would almost never match once a row needed a real
+  /// conflict retry (see docs/DECISIONS.md, Gate 10 2026-09-05 fix — this
+  /// column was a lossy `DateTimeColumn` before schema v4).
+  TextColumn get baseUpdatedAt => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

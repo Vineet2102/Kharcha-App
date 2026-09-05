@@ -48,7 +48,7 @@ class CategoryDao extends DatabaseAccessor<AppDatabase>
   /// [baseUpdatedAt] (the value this device just successfully pushed) —
   /// used by `pushUpsert`'s conflict-resolution path (see docs/DECISIONS.md,
   /// Gate 4 2026-09-05 fix).
-  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+  Future<void> markSyncedWithBase(String id, String baseUpdatedAt) =>
       (update(categories)..where((t) => t.id.equals(id))).write(
         CategoriesCompanion(
           isDirty: const Value(false),
@@ -61,7 +61,7 @@ class CategoryDao extends DatabaseAccessor<AppDatabase>
   /// without touching `isDirty`/`updatedAt` — used when a push conflict is
   /// resolved in favour of the (still-pending) local edit, so the next push
   /// attempt's compare-and-swap uses the up-to-date base.
-  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+  Future<void> updateBaseUpdatedAt(String id, String baseUpdatedAt) =>
       (update(categories)..where((t) => t.id.equals(id))).write(
         CategoriesCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
       );

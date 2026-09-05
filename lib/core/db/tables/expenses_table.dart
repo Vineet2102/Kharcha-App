@@ -24,7 +24,7 @@ class Expenses extends Table {
   BoolColumn get isDirty => boolean().withDefault(const Constant(false))();
 
   /// See `Categories.baseUpdatedAt`.
-  DateTimeColumn get baseUpdatedAt => dateTime().nullable()();
+  TextColumn get baseUpdatedAt => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

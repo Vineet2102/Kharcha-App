@@ -34,7 +34,7 @@ extension ExpenseRowMapper on Expense {
 extension ExpenseDomainMapper on domain.Expense {
   ExpensesCompanion toCompanion({
     bool dirty = false,
-    DateTime? baseUpdatedAt,
+    String? baseUpdatedAt,
   }) => ExpensesCompanion(
     id: Value(id),
     householdId: Value(householdId),

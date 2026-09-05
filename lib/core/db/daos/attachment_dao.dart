@@ -59,7 +59,7 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase>
       );
 
   /// See `CategoryDao.markSyncedWithBase`.
-  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+  Future<void> markSyncedWithBase(String id, String baseUpdatedAt) =>
       (update(attachments)..where((t) => t.id.equals(id))).write(
         AttachmentsCompanion(
           isDirty: const Value(false),
@@ -69,7 +69,7 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase>
       );
 
   /// See `CategoryDao.updateBaseUpdatedAt`.
-  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+  Future<void> updateBaseUpdatedAt(String id, String baseUpdatedAt) =>
       (update(attachments)..where((t) => t.id.equals(id))).write(
         AttachmentsCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
       );

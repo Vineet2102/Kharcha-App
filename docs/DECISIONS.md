@@ -1359,48 +1359,79 @@ throws `SyncConflictRetryException` (the intended, benign retry path) and
 converges on the next attempt — confirmed live via the same VM-service log
 tail.
 
-### Bug found, NOT fixed this session — `base_updated_at`'s round-trip through Drift loses sub-second precision, so a CAS retry can loop forever
+### Bug found & fixed — `base_updated_at`'s round-trip through Drift lost sub-second precision, so a CAS retry could loop forever
 
-While confirming the fix above live, one specific expense's `has_receipt`
-push kept retrying with `SyncConflictRetryException` indefinitely — the
-*intended* retry path (not a crash), but it never actually converged.
-Root cause: `base_updated_at` is a Drift `DateTimeColumn`, stored as a
-plain integer **seconds**-since-epoch
+While confirming the two fixes above live, one specific expense's
+`has_receipt` push kept retrying with `SyncConflictRetryException`
+indefinitely — the *intended* retry path (not a crash), but it never
+actually converged. Root cause: `base_updated_at` was a Drift
+`DateTimeColumn`, stored as a plain integer **seconds**-since-epoch
 (`sqlite3 ... "select base_updated_at, typeof(base_updated_at) from
 expenses"` → `1788594865|integer`, i.e. whole seconds). Postgres's
 `timestamptz` has microsecond precision, and `now()` essentially never
 lands on an exact second boundary. So: fetch the server's row →
 `DateTime.parse(...)` retains microseconds → store as `base_updated_at` →
-**Drift truncates to whole seconds on write** → next CAS attempt sends
+**Drift truncated to whole seconds on write** → next CAS attempt sends
 `.eq('updated_at', truncated.toIso8601String())` → server's actual stored
 value still has its original microseconds → never matches → mismatch →
-re-fetch → re-store (still truncated) → repeat forever. This isn't
-specific to receipts or to today's other two fixes — it's a latent defect
-in the Gate 4 CAS design itself, and would affect **any** entity the
-moment it needs a second real conflict-resolution cycle (as opposed to a
-first, unconditional `expectedBase == null` push, which never compares
-anything).
+re-fetch → re-store (still truncated) → repeat forever. This wasn't
+specific to receipts or to the other two fixes above — it was a latent
+defect in the Gate 4 CAS design itself, and would have affected **any**
+entity the moment it needed a second real conflict-resolution cycle (as
+opposed to a first, unconditional `expectedBase == null` push, which never
+compares anything).
 
-**Why not fixed now:** a correct fix needs `base_updated_at`'s round-trip
-to preserve full Postgres precision — either storing it as raw ISO-8601
-`TEXT` instead of a lossy `DateTimeColumn`, or reconfiguring Drift's
-DateTime storage mode app-wide — either of which is a schema migration
-touching all 7 syncable tables. That's a bigger, riskier change than is
-safe to make blind at the tail end of an already-long live-debugging
-session; it deserves its own careful pass (migration + backfill + a test
-against a hand-built pre-migration database, same precedent as
-`migration_v2_to_v3_test.dart`).
+**Fix — a raw string, never a `DateTime`, anywhere in the round trip.**
+Rather than just widening the column's precision, the CAS base's type
+changed everywhere it flows: `TableRemoteDataSource.upsertIfBaseMatches()`
+now takes and returns `String?` — the server's `updated_at` exactly as
+Postgres/PostgREST serialised it, read straight off the JSON response
+(`list.first['updated_at'] as String`) and never parsed into a `DateTime`
+or reformatted. `_LocalSyncMeta.baseUpdatedAt`, every DAO's
+`markSyncedWithBase`/`updateBaseUpdatedAt`, and every `toCompanion()`'s
+`baseUpdatedAt` parameter all became `String?` to match. Every table's
+`baseUpdatedAt` column moved from `DateTimeColumn` to `TextColumn` (schema
+v3 → v4). This is stronger than "store more decimal places" — it makes
+the value a pure passthrough, so there is no longer any code path that
+*could* reformat it and reintroduce drift. (`_updatedAtOf()`'s parsed
+`DateTime`, used only for "is local newer than remote" ordering checks
+in `_localWins`/`localIsNewer`, is unaffected and unchanged — ordering
+comparisons don't need microsecond exactness, only exact-equality CAS
+does.)
 
-**Current state:** the one test expense that hit this (`Groceries`, ₹250,
-Rupesh) is left with a permanently-retrying `has_receipt` push on device
-2's local outbox — harmless (capped exponential backoff, no data
-corruption, doesn't block any other entity's sync) but it will never
-converge until this is fixed. Deliberately not cleaned up by force-editing
-the local database, since that risks colliding with the same precision
-bug in a worse way (e.g. resurrecting a soft-deleted row — see the
-reasoning trail in-session). **Follow-up work, tracked here since there's
-no issue tracker**: fix the precision loss, then confirm this specific row
-converges and delete the test expense.
+**Migration (v3 → v4):** SQLite can't change a column's type in place, so
+`AppDatabase`'s `onUpgrade` drops and re-adds `base_updated_at` on all 7
+syncable tables (`m.dropColumn`, requires sqlite 3.35+, guaranteed here by
+bundling `sqlite3_flutter_libs` rather than relying on the OS's sqlite).
+Every row's base resets to `null` across the upgrade — deliberately: the
+old integer value could never CAS-match the server's full-precision
+`updated_at` anyway, so migrating it across would just carry the bug
+forward. A `null` base means that row's *next* push is unconditional
+(identical to a brand-new row), then self-heals with a precise `TEXT`
+base from that push onward. Covered by
+`test/unit/db/migration_v3_to_v4_test.dart` (hand-built v3 sqlite file,
+same technique as `migration_v2_to_v3_test.dart`), plus a new
+sub-second-precision round-trip test and rewrite of the `String?`-typed
+fake in `push_conflict_resolution_test.dart`.
+
+**Live-verified the exact scenario that found this bug.** The one test
+expense that got stuck (`Groceries`, ₹250, Rupesh) had been retrying
+identically for hours across the earlier live-verification session.
+Rebuilt the app with this fix, reinstalled over the *same* on-device
+database (not a fresh install — the point was proving the migration runs
+correctly against real stuck data), and relaunched: `base_updated_at`
+confirmed `TEXT NULL` immediately after the v3→v4 migration ran, and after
+one sync cycle the outbox drained to empty with the expense finally
+landing `has_receipt=1, is_dirty=0, sync_status='synced'`,
+`base_updated_at='2026-09-05T13:32:17.259813+00:00'` — a precise,
+microsecond-bearing string, proving the whole mechanism end-to-end against
+the real Supabase project. (This pass also hit an unrelated environment
+issue — the long-suspended emulator's DNS resolution broke, "Failed host
+lookup" on Supabase's hostname, confirmed via the same VM-service log
+technique below; a bare ICMP ping to `8.8.8.8` still worked, ruling out
+general connectivity — a cold restart of the emulator fixed it. Unrelated
+to this fix; noted only so a future session recognises the symptom
+quickly.)
 
 ### Bug found, unrelated, NOT fixed — Dashboard per-member row crashes on tap
 
@@ -1437,16 +1468,18 @@ in-app error banner only ever show the sanitised `Failure.message`.
 
 ### Live verification (Gate 10)
 
-`fvm flutter analyze --fatal-infos` clean; `fvm flutter test` green at 196
-tests (8 new this phase: 5 in `attachment_repository_test.dart`, 1 new
-regression case in `push_conflict_resolution_test.dart` plus 1 rewritten
-for the `DateTime?` signature change, 7 in the new
-`mapper_local_updated_at_test.dart`). **Live-verified** on two real
-Android emulators against the real Supabase project: Rupesh (member),
-fully offline (`svc wifi/data disable`, confirmed 0 connected networks),
-created a ₹250 "Groceries" expense and attached a photo from the gallery —
-both the expense and the compressed receipt (712 KB source → 151 KB
-cached file, well under the 400 KB target) saved locally with the correct
+`fvm flutter analyze --fatal-infos` clean; `fvm flutter test` green at 198
+tests (5 in `attachment_repository_test.dart`, 7 in the new
+`mapper_local_updated_at_test.dart`, 1 new sub-second-precision round-trip
+case plus the earlier double-push regression case in
+`push_conflict_resolution_test.dart` — that whole file's fake rewritten for
+the `String?` CAS-base signature — and 1 new
+`migration_v3_to_v4_test.dart`). **Live-verified** on two real Android
+emulators against the real Supabase project: Rupesh (member), fully
+offline (`svc wifi/data disable`, confirmed 0 connected networks), created
+a ₹250 "Groceries" expense and attached a photo from the gallery — both
+the expense and the compressed receipt (712 KB source → 151 KB cached
+file, well under the 400 KB target) saved locally with the correct
 `is_dirty`/`pending` bookkeeping and the correct
 `<household_id>/<expense_id>/<attachment_id>.jpg` storage path. Reconnected
 — the attachment uploaded and synced cleanly. Vineet (admin), on a
@@ -1455,8 +1488,26 @@ List and saw the receipt thumbnail (downloaded via signed URL and cached),
 opened the full-screen viewer, and saw the share button — confirming
 T-10.4's resolution order and cross-device visibility end-to-end. Gate
 10's literal acceptance text ("Capture offline → reconnect → the image is
-visible on a second device") is satisfied. Status held at **partial**
-rather than **passed**, pending the sub-second-precision CAS fix above
-(not a receipts-specific gap, but it currently means at least one
-receipts-adjacent field — `has_receipt` — cannot be relied on to converge
-after a second edit) and a fresh live pass once that's fixed.
+visible on a second device") is satisfied.
+
+The sub-second-precision fix was then also live-verified directly against
+the real stuck row from this same session (see above) — the exact
+`has_receipt` push that had been retrying for hours converged cleanly the
+moment the fixed app opened its existing (unmodified) local database, with
+no data loss and no manual intervention: `base_updated_at` confirmed
+`TEXT NULL` right after the v3 → v4 migration, then a precise
+microsecond-bearing string after the next successful push.
+
+This is a genuine, real conflict-retry converging via the CAS mechanism
+end-to-end for the first time this build has actually observed it
+succeed — every earlier attempt this session hit one of the three bugs
+above first. It is **not**, however, a re-run of Gate 4's own pending
+acceptance scenario (two separate devices editing the *same* row while
+both offline, reconnecting, and confirming the newer edit wins) — this
+was a single device's own two sequential edits colliding with themselves.
+**Gate 4 stays at partial**, now blocked only on that literal two-device
+scenario re-run (no emulator pair was free for a second, parallel test
+in this same session) — but with materially higher confidence than
+before, since the CAS plumbing it depends on has now been shown to work
+correctly against the real Supabase project rather than only in the
+`push_conflict_resolution_test.dart` fakes.

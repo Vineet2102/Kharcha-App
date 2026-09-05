@@ -61,7 +61,7 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
       );
 
   /// See `CategoryDao.markSyncedWithBase`.
-  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+  Future<void> markSyncedWithBase(String id, String baseUpdatedAt) =>
       (update(incomes)..where((t) => t.id.equals(id))).write(
         IncomesCompanion(
           isDirty: const Value(false),
@@ -71,7 +71,7 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
       );
 
   /// See `CategoryDao.updateBaseUpdatedAt`.
-  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+  Future<void> updateBaseUpdatedAt(String id, String baseUpdatedAt) =>
       (update(incomes)..where((t) => t.id.equals(id))).write(
         IncomesCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
       );

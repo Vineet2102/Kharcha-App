@@ -49,30 +49,40 @@ class TableRemoteDataSource {
   /// the same row still queued in the same drain pass would then spuriously
   /// CAS-mismatch against the real server value and get discarded as if it
   /// were a genuine remote conflict. See docs/DECISIONS.md, Gate 10.
-  Future<DateTime?> upsertIfBaseMatches(
+  ///
+  /// [expectedBase] and the return value are the server's raw ISO-8601
+  /// `updated_at` string, verbatim — deliberately never parsed into a
+  /// `DateTime` and reformatted anywhere in this round trip. Postgres's
+  /// `timestamptz` has microsecond precision; parsing then reformatting
+  /// (or worse, storing it in a `DateTimeColumn`, which rounds to whole
+  /// seconds) would make the `.eq('updated_at', ...)` filter below almost
+  /// never match once a row needs a real conflict-retry cycle — see
+  /// docs/DECISIONS.md, Gate 10 2026-09-05 (the precision-loss bug this
+  /// type replaces).
+  Future<String?> upsertIfBaseMatches(
     Map<String, dynamic> payload,
-    DateTime? expectedBase,
+    String? expectedBase,
   ) async {
     if (expectedBase == null) {
       final rows = await _client
           .from(table)
           .upsert(payload, onConflict: 'id')
           .select('updated_at');
-      return _serverUpdatedAt(rows);
+      return _rawUpdatedAt(rows);
     }
     final updated = await _client
         .from(table)
         .update(payload)
         .eq('id', payload['id'] as String)
-        .eq('updated_at', expectedBase.toIso8601String())
+        .eq('updated_at', expectedBase)
         .select('updated_at');
-    return _serverUpdatedAt(updated);
+    return _rawUpdatedAt(updated);
   }
 
-  DateTime? _serverUpdatedAt(dynamic rows) {
+  String? _rawUpdatedAt(dynamic rows) {
     final list = List<Map<String, dynamic>>.from(rows as List);
     if (list.isEmpty) return null;
-    return DateTime.parse(list.first['updated_at'] as String).toUtc();
+    return list.first['updated_at'] as String;
   }
 
   /// The current server row for [id], or null if it no longer exists

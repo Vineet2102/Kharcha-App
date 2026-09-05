@@ -24,6 +24,17 @@ class _FakePathProvider extends PathProviderPlatform
 /// `AppDatabase.forTesting`, which always starts fresh at the latest
 /// version) to prove existing family data survives the upgrade instead of
 /// asserting it in the abstract.
+///
+/// `AppDatabase()`'s `schemaVersion` has since moved to 4 (the Gate 10
+/// timestamp-precision fix, also 2026-09-05 — see
+/// `migration_v3_to_v4_test.dart`), so opening this hand-built v2 file now
+/// exercises the full v2 -> v3 -> v4 chain in one open, the same as a real
+/// device that hasn't synced in a while. The v4 step unconditionally resets
+/// `base_updated_at` to null for every row (see that migration's own
+/// comment), so this test's assertions reflect the *end* state of the full
+/// chain rather than the v3-only backfill in isolation — the v3-only
+/// backfill behaviour itself is covered directly by
+/// `migration_v3_to_v4_test.dart`'s "before" fixture.
 void main() {
   late Directory tempDir;
   late String dbPath;
@@ -126,9 +137,13 @@ void main() {
       final clean = rows.firstWhere((r) => r.id == 'clean1');
       expect(clean.name, 'Groceries', reason: 'existing data must survive');
       expect(
-        clean.baseUpdatedAt!.toUtc(),
-        DateTime.utc(2026, 1, 1),
-        reason: 'a clean row\'s updatedAt already matched the server',
+        clean.baseUpdatedAt,
+        isNull,
+        reason:
+            'the v3 -> v4 step (Gate 10 fix) unconditionally resets every '
+            'row\'s base to null when it drops the old lossy INTEGER '
+            'column — this row\'s next push is unconditional once, then '
+            'self-heals with a precise TEXT base',
       );
 
       final dirty = rows.firstWhere((r) => r.id == 'dirty1');
@@ -136,10 +151,7 @@ void main() {
       expect(
         dirty.baseUpdatedAt,
         isNull,
-        reason:
-            'a still-dirty row\'s updatedAt is its own unpushed edit, not '
-            'a confirmed server value — falls back to a plain upsert once, '
-            'then self-heals',
+        reason: 'same reset applies regardless of is_dirty',
       );
 
       await db.close();

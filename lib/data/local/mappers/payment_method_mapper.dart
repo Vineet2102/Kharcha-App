@@ -24,7 +24,7 @@ extension PaymentMethodRowMapper on PaymentMethod {
 extension PaymentMethodDomainMapper on domain.PaymentMethod {
   PaymentMethodsCompanion toCompanion({
     bool dirty = false,
-    DateTime? baseUpdatedAt,
+    String? baseUpdatedAt,
   }) => PaymentMethodsCompanion(
     id: Value(id),
     householdId: Value(householdId),

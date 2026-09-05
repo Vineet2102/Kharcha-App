@@ -16,22 +16,24 @@ class FakeExpenseRemoteDataSource implements ExpenseRemoteDataSource {
   final String table = 'expenses';
 
   /// What the compare-and-swap should report back: the server's resulting
-  /// `updated_at` on success (which, per the real `touch_updated_at()`
-  /// trigger, is not necessarily the payload's own claimed value — see the
-  /// "server trigger advances past the payload" test below), or `null` to
-  /// simulate a CAS mismatch (no rows matched).
-  DateTime? casResult;
+  /// raw `updated_at` string on success (which, per the real
+  /// `touch_updated_at()` trigger, is not necessarily the payload's own
+  /// claimed value — see the "server trigger advances past the payload"
+  /// test below), or `null` to simulate a CAS mismatch (no rows matched).
+  /// Deliberately a raw string, never a `DateTime` — see
+  /// `TableRemoteDataSource.upsertIfBaseMatches`'s doc comment for why.
+  String? casResult;
 
   /// What `fetchById` returns when the CAS above fails.
   Map<String, dynamic>? serverRow;
 
-  DateTime? lastCasExpectedBase;
+  String? lastCasExpectedBase;
   final List<Map<String, dynamic>> plainUpserts = [];
 
   @override
-  Future<DateTime?> upsertIfBaseMatches(
+  Future<String?> upsertIfBaseMatches(
     Map<String, dynamic> payload,
-    DateTime? expectedBase,
+    String? expectedBase,
   ) async {
     lastCasExpectedBase = expectedBase;
     return casResult;
@@ -91,7 +93,7 @@ void main() {
 
   Future<void> insertLocal({
     required DateTime updatedAt,
-    required DateTime? baseUpdatedAt,
+    required String? baseUpdatedAt,
     required bool dirty,
     DateTime? localUpdatedAt,
     String note = 'local note',
@@ -129,18 +131,18 @@ void main() {
     final edited = DateTime.utc(2026, 1, 2);
     await insertLocal(
       updatedAt: edited,
-      baseUpdatedAt: base,
+      baseUpdatedAt: base.toIso8601String(),
       dirty: true,
       localUpdatedAt: edited,
     );
-    remote.casResult = edited;
+    remote.casResult = edited.toIso8601String();
 
     await adapter.pushUpsert(db, payloadFor(edited));
 
-    expect(remote.lastCasExpectedBase!.toUtc(), base);
+    expect(remote.lastCasExpectedBase, base.toIso8601String());
     final local = await db.expenseDao.findById(expenseId);
     expect(local!.isDirty, isFalse);
-    expect(local.baseUpdatedAt!.toUtc(), edited);
+    expect(local.baseUpdatedAt, edited.toIso8601String());
   });
 
   test('a conflict where the remote edit is newer discards the local edit and '
@@ -150,7 +152,7 @@ void main() {
     final remoteEditedAt = DateTime.utc(2026, 1, 3); // Rupesh's newer edit
     await insertLocal(
       updatedAt: localEditedAt,
-      baseUpdatedAt: base,
+      baseUpdatedAt: base.toIso8601String(),
       dirty: true,
       localUpdatedAt: localEditedAt,
       note: 'local note',
@@ -163,7 +165,7 @@ void main() {
     final local = await db.expenseDao.findById(expenseId);
     expect(local!.note, 'remote note');
     expect(local.isDirty, isFalse);
-    expect(local.baseUpdatedAt!.toUtc(), remoteEditedAt);
+    expect(local.baseUpdatedAt, remoteEditedAt.toIso8601String());
 
     final logged = AppLogger.instance.recentEntries.any(
       (entry) =>
@@ -180,7 +182,7 @@ void main() {
     final localEditedAt = DateTime.utc(2026, 1, 3); // genuinely newest
     await insertLocal(
       updatedAt: localEditedAt,
-      baseUpdatedAt: base,
+      baseUpdatedAt: base.toIso8601String(),
       dirty: true,
       localUpdatedAt: localEditedAt,
       note: 'local note',
@@ -200,8 +202,8 @@ void main() {
     expect(local!.note, 'local note', reason: 'the local edit is kept');
     expect(local.isDirty, isTrue);
     expect(
-      local.baseUpdatedAt!.toUtc(),
-      someoneElsesOlderEdit,
+      local.baseUpdatedAt,
+      someoneElsesOlderEdit.toIso8601String(),
       reason: 'the base is refreshed so the next retry CASes correctly',
     );
     expect(AppLogger.instance.recentEntries, isEmpty);
@@ -217,7 +219,7 @@ void main() {
       final remoteEditedAt = DateTime.utc(2026, 1, 3);
       await insertLocal(
         updatedAt: base,
-        baseUpdatedAt: base,
+        baseUpdatedAt: base.toIso8601String(),
         dirty: true,
         localUpdatedAt: null,
         note: 'local note',
@@ -247,14 +249,14 @@ void main() {
       dirty: true,
       localUpdatedAt: now,
     );
-    remote.casResult = now;
+    remote.casResult = now.toIso8601String();
 
     await adapter.pushUpsert(db, payloadFor(now));
 
     expect(remote.lastCasExpectedBase, isNull);
     final local = await db.expenseDao.findById(expenseId);
     expect(local!.isDirty, isFalse);
-    expect(local.baseUpdatedAt!.toUtc(), now);
+    expect(local.baseUpdatedAt, now.toIso8601String());
   });
 
   test(
@@ -280,13 +282,13 @@ void main() {
       );
 
       // Entry #1: the original create, queued first, payload frozen at t0.
-      remote.casResult = serverNowAtFirstPush;
+      remote.casResult = serverNowAtFirstPush.toIso8601String();
       await adapter.pushUpsert(db, payloadFor(t0, note: 'create'));
 
       final afterFirstPush = await db.expenseDao.findById(expenseId);
       expect(
-        afterFirstPush!.baseUpdatedAt!.toUtc(),
-        serverNowAtFirstPush,
+        afterFirstPush!.baseUpdatedAt,
+        serverNowAtFirstPush.toIso8601String(),
         reason:
             'the new base must be what the server actually stored, not the '
             "payload's stale t0 claim",
@@ -296,12 +298,12 @@ void main() {
       // Its CAS check must be against serverNowAtFirstPush (the corrected
       // base) — which is exactly what a real second CAS call would match,
       // so this must succeed rather than be treated as a remote conflict.
-      remote.casResult = serverNowAtSecondPush;
+      remote.casResult = serverNowAtSecondPush.toIso8601String();
       await adapter.pushUpsert(db, payloadFor(t1, note: 'has_receipt=true edit'));
 
       expect(
-        remote.lastCasExpectedBase!.toUtc(),
-        serverNowAtFirstPush,
+        remote.lastCasExpectedBase,
+        serverNowAtFirstPush.toIso8601String(),
         reason: "the second push's CAS must target the real server value",
       );
       final afterSecondPush = await db.expenseDao.findById(expenseId);
@@ -313,12 +315,44 @@ void main() {
             "conflict with the device's own first push",
       );
       expect(afterSecondPush.isDirty, isFalse);
-      expect(afterSecondPush.baseUpdatedAt!.toUtc(), serverNowAtSecondPush);
+      expect(
+        afterSecondPush.baseUpdatedAt,
+        serverNowAtSecondPush.toIso8601String(),
+      );
       expect(
         AppLogger.instance.recentEntries,
         isEmpty,
         reason: 'no conflict was ever genuinely lost, so nothing is logged',
       );
+    },
+  );
+
+  test(
+    'a sub-second-precision server timestamp round-trips exactly (Gate 10 '
+    '2026-09-05 fix — the bug this file\'s CAS base type change closes)',
+    () async {
+      // A real Postgres `now()` essentially never lands on a whole second.
+      // Before this fix, base_updated_at was a DateTimeColumn that rounded
+      // to whole seconds, so a base like this could never CAS-match the
+      // server's own stored value again — the retry above would loop
+      // forever. Asserting a microsecond-precision string survives
+      // insertLocal -> Drift -> findById unchanged is the actual
+      // regression check for that.
+      const preciseBase = '2026-01-01T00:00:00.123456Z';
+      await insertLocal(
+        updatedAt: DateTime.utc(2026, 1, 1),
+        baseUpdatedAt: preciseBase,
+        dirty: true,
+        localUpdatedAt: DateTime.utc(2026, 1, 1),
+      );
+
+      final local = await db.expenseDao.findById(expenseId);
+      expect(local!.baseUpdatedAt, preciseBase);
+
+      remote.casResult = '2026-01-01T00:00:00.654321Z';
+      await adapter.pushUpsert(db, payloadFor(DateTime.utc(2026, 1, 1)));
+
+      expect(remote.lastCasExpectedBase, preciseBase);
     },
   );
 }

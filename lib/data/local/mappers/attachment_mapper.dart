@@ -29,7 +29,7 @@ extension AttachmentRowMapper on Attachment {
 extension AttachmentDomainMapper on domain.Attachment {
   AttachmentsCompanion toCompanion({
     bool dirty = false,
-    DateTime? baseUpdatedAt,
+    String? baseUpdatedAt,
   }) => AttachmentsCompanion(
     id: Value(id),
     householdId: Value(householdId),

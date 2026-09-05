@@ -38,7 +38,7 @@ extension RecurringRuleRowMapper on RecurringRule {
 extension RecurringRuleDomainMapper on domain.RecurringRule {
   RecurringRulesCompanion toCompanion({
     bool dirty = false,
-    DateTime? baseUpdatedAt,
+    String? baseUpdatedAt,
   }) => RecurringRulesCompanion(
     id: Value(id),
     householdId: Value(householdId),

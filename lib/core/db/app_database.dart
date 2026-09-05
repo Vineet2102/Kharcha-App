@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -117,6 +117,38 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'UPDATE attachments SET base_updated_at = updated_at WHERE is_dirty = 0',
         );
+      }
+      // v3 -> v4 (Gate 10 fix, 2026-09-05): base_updated_at moves from a
+      // lossy unix-timestamp INTEGER (whole seconds — SQLite's default
+      // DateTimeColumn storage) to a TEXT column holding the server's raw
+      // ISO-8601 string verbatim. Postgres's `updated_at` has microsecond
+      // precision that the old INTEGER column silently rounded away, so a
+      // push's `.eq('updated_at', ...)` compare-and-swap could mismatch
+      // forever once a row needed a genuine conflict retry (see
+      // docs/DECISIONS.md). SQLite can't change a column's type in place,
+      // so every table's column is dropped and re-added — every row's base
+      // resets to null, which just means that row's *next* push is
+      // unconditional (identical to a brand-new row, see
+      // `upsertIfBaseMatches`'s `expectedBase == null` branch) rather than
+      // CAS-guarded; it self-heals with a precise base from that push
+      // onward. Requires sqlite 3.35+ for `DROP COLUMN`, guaranteed here by
+      // bundling `sqlite3_flutter_libs` rather than relying on the OS's
+      // sqlite.
+      if (from < 4) {
+        await m.dropColumn(categories, 'base_updated_at');
+        await m.dropColumn(paymentMethods, 'base_updated_at');
+        await m.dropColumn(expenses, 'base_updated_at');
+        await m.dropColumn(incomes, 'base_updated_at');
+        await m.dropColumn(budgets, 'base_updated_at');
+        await m.dropColumn(recurringRules, 'base_updated_at');
+        await m.dropColumn(attachments, 'base_updated_at');
+        await m.addColumn(categories, categories.baseUpdatedAt);
+        await m.addColumn(paymentMethods, paymentMethods.baseUpdatedAt);
+        await m.addColumn(expenses, expenses.baseUpdatedAt);
+        await m.addColumn(incomes, incomes.baseUpdatedAt);
+        await m.addColumn(budgets, budgets.baseUpdatedAt);
+        await m.addColumn(recurringRules, recurringRules.baseUpdatedAt);
+        await m.addColumn(attachments, attachments.baseUpdatedAt);
       }
     },
   );

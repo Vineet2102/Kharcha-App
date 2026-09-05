@@ -26,7 +26,7 @@ extension BudgetRowMapper on Budget {
 }
 
 extension BudgetDomainMapper on domain.Budget {
-  BudgetsCompanion toCompanion({bool dirty = false, DateTime? baseUpdatedAt}) =>
+  BudgetsCompanion toCompanion({bool dirty = false, String? baseUpdatedAt}) =>
       BudgetsCompanion(
         id: Value(id),
         householdId: Value(householdId),
