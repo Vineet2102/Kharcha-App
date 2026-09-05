@@ -32,7 +32,10 @@ extension ExpenseRowMapper on Expense {
 }
 
 extension ExpenseDomainMapper on domain.Expense {
-  ExpensesCompanion toCompanion({bool dirty = false}) => ExpensesCompanion(
+  ExpensesCompanion toCompanion({
+    bool dirty = false,
+    DateTime? baseUpdatedAt,
+  }) => ExpensesCompanion(
     id: Value(id),
     householdId: Value(householdId),
     userId: Value(userId),
@@ -52,5 +55,8 @@ extension ExpenseDomainMapper on domain.Expense {
     deletedAt: Value(deletedAt),
     isDirty: Value(dirty),
     syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
   );
 }

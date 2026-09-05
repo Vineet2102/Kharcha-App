@@ -74,6 +74,22 @@ class BudgetDao extends DatabaseAccessor<AppDatabase> with _$BudgetDaoMixin {
         ),
       );
 
+  /// See `CategoryDao.markSyncedWithBase`.
+  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+      (update(budgets)..where((t) => t.id.equals(id))).write(
+        BudgetsCompanion(
+          isDirty: const Value(false),
+          syncStatus: const Value('synced'),
+          baseUpdatedAt: Value(baseUpdatedAt),
+        ),
+      );
+
+  /// See `CategoryDao.updateBaseUpdatedAt`.
+  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+      (update(budgets)..where((t) => t.id.equals(id))).write(
+        BudgetsCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
+      );
+
   Future<int> hardDelete(String id) =>
       (delete(budgets)..where((t) => t.id.equals(id))).go();
 }

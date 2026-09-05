@@ -22,18 +22,23 @@ extension PaymentMethodRowMapper on PaymentMethod {
 }
 
 extension PaymentMethodDomainMapper on domain.PaymentMethod {
-  PaymentMethodsCompanion toCompanion({bool dirty = false}) =>
-      PaymentMethodsCompanion(
-        id: Value(id),
-        householdId: Value(householdId),
-        name: Value(name),
-        type: Value(type.name),
-        isArchived: Value(isArchived),
-        sortOrder: Value(sortOrder),
-        createdAt: Value(createdAt),
-        updatedAt: Value(updatedAt),
-        deletedAt: Value(deletedAt),
-        isDirty: Value(dirty),
-        syncStatus: Value(dirty ? 'pending' : 'synced'),
-      );
+  PaymentMethodsCompanion toCompanion({
+    bool dirty = false,
+    DateTime? baseUpdatedAt,
+  }) => PaymentMethodsCompanion(
+    id: Value(id),
+    householdId: Value(householdId),
+    name: Value(name),
+    type: Value(type.name),
+    isArchived: Value(isArchived),
+    sortOrder: Value(sortOrder),
+    createdAt: Value(createdAt),
+    updatedAt: Value(updatedAt),
+    deletedAt: Value(deletedAt),
+    isDirty: Value(dirty),
+    syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
+  );
 }

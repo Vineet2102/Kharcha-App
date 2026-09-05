@@ -36,32 +36,37 @@ extension RecurringRuleRowMapper on RecurringRule {
 }
 
 extension RecurringRuleDomainMapper on domain.RecurringRule {
-  RecurringRulesCompanion toCompanion({bool dirty = false}) =>
-      RecurringRulesCompanion(
-        id: Value(id),
-        householdId: Value(householdId),
-        userId: Value(userId),
-        kind: Value(kind.name),
-        title: Value(title),
-        amountPaise: Value(amountPaise),
-        categoryId: Value(categoryId),
-        paymentMethodId: Value(paymentMethodId),
-        note: Value(note),
-        frequency: Value(frequency.name),
-        intervalN: Value(intervalN),
-        dayOfMonth: Value(dayOfMonth),
-        weekday: Value(weekday),
-        monthOfYear: Value(monthOfYear),
-        startDate: Value(startDate),
-        endDate: Value(endDate),
-        nextDueDate: Value(nextDueDate),
-        autoPost: Value(autoPost),
-        isActive: Value(isActive),
-        lastPostedOn: Value(lastPostedOn),
-        createdAt: Value(createdAt),
-        updatedAt: Value(updatedAt),
-        deletedAt: Value(deletedAt),
-        isDirty: Value(dirty),
-        syncStatus: Value(dirty ? 'pending' : 'synced'),
-      );
+  RecurringRulesCompanion toCompanion({
+    bool dirty = false,
+    DateTime? baseUpdatedAt,
+  }) => RecurringRulesCompanion(
+    id: Value(id),
+    householdId: Value(householdId),
+    userId: Value(userId),
+    kind: Value(kind.name),
+    title: Value(title),
+    amountPaise: Value(amountPaise),
+    categoryId: Value(categoryId),
+    paymentMethodId: Value(paymentMethodId),
+    note: Value(note),
+    frequency: Value(frequency.name),
+    intervalN: Value(intervalN),
+    dayOfMonth: Value(dayOfMonth),
+    weekday: Value(weekday),
+    monthOfYear: Value(monthOfYear),
+    startDate: Value(startDate),
+    endDate: Value(endDate),
+    nextDueDate: Value(nextDueDate),
+    autoPost: Value(autoPost),
+    isActive: Value(isActive),
+    lastPostedOn: Value(lastPostedOn),
+    createdAt: Value(createdAt),
+    updatedAt: Value(updatedAt),
+    deletedAt: Value(deletedAt),
+    isDirty: Value(dirty),
+    syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
+  );
 }

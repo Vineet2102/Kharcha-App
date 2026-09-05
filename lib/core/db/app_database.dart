@@ -70,16 +70,53 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     // v1 -> v2 (Phase 4, T-4.3): OutboxEntries.status distinguishes a
     // permanently-failed entry from one still waiting on backoff.
+    // v2 -> v3 (Gate 4 fix, 2026-09-05): baseUpdatedAt on every push-capable
+    // table backs a compare-and-swap on push instead of an unconditional
+    // upsert (see docs/DECISIONS.md) — a clean (non-dirty) row's current
+    // `updatedAt` already equals the server's, so it's backfilled straight
+    // across; a dirty row's `updatedAt` is its own unpushed edit, not a
+    // confirmed server value, so it's left null (falls back to a plain
+    // upsert for that one in-flight edit, then self-heals on its next sync).
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(outboxEntries, outboxEntries.status);
+      }
+      if (from < 3) {
+        await m.addColumn(categories, categories.baseUpdatedAt);
+        await m.addColumn(paymentMethods, paymentMethods.baseUpdatedAt);
+        await m.addColumn(expenses, expenses.baseUpdatedAt);
+        await m.addColumn(incomes, incomes.baseUpdatedAt);
+        await m.addColumn(budgets, budgets.baseUpdatedAt);
+        await m.addColumn(recurringRules, recurringRules.baseUpdatedAt);
+        await m.addColumn(attachments, attachments.baseUpdatedAt);
+        await customStatement(
+          'UPDATE categories SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE payment_methods SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE expenses SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE incomes SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE budgets SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE recurring_rules SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE attachments SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
       }
     },
   );

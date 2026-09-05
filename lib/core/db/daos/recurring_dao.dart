@@ -53,6 +53,22 @@ class RecurringDao extends DatabaseAccessor<AppDatabase>
         ),
       );
 
+  /// See `CategoryDao.markSyncedWithBase`.
+  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+      (update(recurringRules)..where((t) => t.id.equals(id))).write(
+        RecurringRulesCompanion(
+          isDirty: const Value(false),
+          syncStatus: const Value('synced'),
+          baseUpdatedAt: Value(baseUpdatedAt),
+        ),
+      );
+
+  /// See `CategoryDao.updateBaseUpdatedAt`.
+  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+      (update(recurringRules)..where((t) => t.id.equals(id))).write(
+        RecurringRulesCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
+      );
+
   Future<int> hardDelete(String id) =>
       (delete(recurringRules)..where((t) => t.id.equals(id))).go();
 }

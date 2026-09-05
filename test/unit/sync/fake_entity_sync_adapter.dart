@@ -44,7 +44,7 @@ class FakeEntitySyncAdapter extends EntitySyncAdapter {
   Future<void> pullApply(AppDatabase db, Map<String, dynamic> json) async {}
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) async {
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) async {
     callLog.add('$entityKey:upsert:${payload['id']}');
     if (upsertErrorQueue.isNotEmpty) {
       final next = upsertErrorQueue.removeAt(0);

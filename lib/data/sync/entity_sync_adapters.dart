@@ -70,11 +70,109 @@ abstract class EntitySyncAdapter {
   /// unpushed local edit, the loss is logged.
   Future<void> pullApply(AppDatabase db, Map<String, dynamic> json);
 
-  Future<void> pushUpsert(Map<String, dynamic> payload);
+  /// Pushes one local edit, resolving a genuine cross-device conflict by
+  /// timestamp rather than by push order (spec §13 Test 5 / D12 — see
+  /// docs/DECISIONS.md, Gate 4 2026-09-05 fix). Fully owns the local row's
+  /// post-push state: on success it stamps the row synced; on a conflict
+  /// resolved in the remote's favour it overwrites the row (and logs the
+  /// discarded edit) exactly as a routine pull would.
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload);
 
   Future<void> pushSoftDelete(String id, DateTime now);
 
   Future<void> markLocalSynced(AppDatabase db, String id);
+}
+
+/// The subset of a syncable row's sync-tracking columns [_pushUpsertWithCas]
+/// needs to decide a push-time conflict.
+class _LocalSyncMeta {
+  const _LocalSyncMeta({
+    required this.isDirty,
+    required this.localUpdatedAt,
+    required this.baseUpdatedAt,
+  });
+
+  final bool isDirty;
+  final DateTime? localUpdatedAt;
+  final DateTime? baseUpdatedAt;
+}
+
+/// Thrown when a push loses a compare-and-swap race but the local edit is
+/// genuinely newer than what's now on the server — a transient condition
+/// (see [ErrorMapper]'s default classification), so [OutboxProcessor]
+/// backs off and retries, by which point [updateBase] has already primed
+/// the row's `baseUpdatedAt` with the value to CAS against next time.
+class SyncConflictRetryException implements Exception {
+  const SyncConflictRetryException(this.entityKey, this.id);
+
+  final String entityKey;
+  final String id;
+
+  @override
+  String toString() =>
+      'SyncConflictRetryException: $entityKey/$id needs a retry after a '
+      'push-time conflict (local edit is newer than the server\'s current '
+      'value)';
+}
+
+/// Push-side counterpart to the pull-side D12 rule in [EntitySyncAdapter]'s
+/// concrete `pullApply` methods (see docs/DECISIONS.md, Gate 4 2026-09-05
+/// fix): a plain unconditional upsert lets whichever device happens to push
+/// second silently clobber a genuinely newer edit made by another device.
+/// This performs a compare-and-swap against the row's last known-good
+/// server value (`baseUpdatedAt`) instead. A mismatch means someone else
+/// moved the row since — resolved by comparing timestamps exactly like a
+/// pull-time conflict (newest edit wins), never by push order:
+///  - the local edit is genuinely newer → the row's base is refreshed to
+///    the server's current value and a retry is requested (the outbox's
+///    normal backoff drives the next attempt);
+///  - otherwise the remote row wins → applied locally via [applyRemote]
+///    (the same overwrite-and-log-the-loss path a routine pull uses).
+Future<void> _pushUpsertWithCas({
+  required String entityKey,
+  required TableRemoteDataSource remote,
+  required Map<String, dynamic> payload,
+  required Future<_LocalSyncMeta?> Function() loadMeta,
+  required Future<void> Function(DateTime base) markSynced,
+  required Future<void> Function(DateTime base) updateBase,
+  required Future<void> Function(Map<String, dynamic> remoteJson) applyRemote,
+}) async {
+  final id = payload['id'] as String;
+  final meta = await loadMeta();
+  final ok = await remote.upsertIfBaseMatches(payload, meta?.baseUpdatedAt);
+  if (ok) {
+    await markSynced(_updatedAtOf(payload));
+    return;
+  }
+
+  final remoteJson = await remote.fetchById(id);
+  if (remoteJson == null) {
+    // The remote row vanished between the CAS attempt and this fetch —
+    // nothing left to compare against, so just push it.
+    await remote.upsert(payload);
+    await markSynced(_updatedAtOf(payload));
+    return;
+  }
+
+  final remoteUpdatedAt = _updatedAtOf(remoteJson);
+  final localIsNewer =
+      meta?.isDirty == true &&
+      meta!.localUpdatedAt != null &&
+      meta.localUpdatedAt!.isAfter(remoteUpdatedAt);
+  if (localIsNewer) {
+    await updateBase(remoteUpdatedAt);
+    throw SyncConflictRetryException(entityKey, id);
+  }
+
+  if (meta?.isDirty == true) {
+    _logConflictLoss(
+      entityKey,
+      id,
+      localUpdatedAt: meta!.localUpdatedAt!,
+      remoteUpdatedAt: remoteUpdatedAt,
+    );
+  }
+  await applyRemote(remoteJson);
 }
 
 /// True when the local row must NOT be overwritten by the incoming remote
@@ -136,7 +234,7 @@ class HouseholdSyncAdapter extends EntitySyncAdapter {
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
       throw UnsupportedError('household is pull-only');
 
   @override
@@ -181,7 +279,7 @@ class ProfileSyncAdapter extends EntitySyncAdapter {
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
       throw UnsupportedError('profile is pull-only');
 
   @override
@@ -241,12 +339,34 @@ class CategorySyncAdapter extends EntitySyncAdapter {
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
-    await db.categoryDao.upsert(domain.Category.fromJson(json).toCompanion());
+    await db.categoryDao.upsert(
+      domain.Category.fromJson(json)
+          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
+    );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.categoryDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.categoryDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.categoryDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -307,13 +427,35 @@ class PaymentMethodSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.paymentMethodDao.upsert(
-      domain.PaymentMethod.fromJson(json).toCompanion(),
+      domain.PaymentMethod.fromJson(json)
+          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
     );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(
+    AppDatabase db,
+    Map<String, dynamic> payload,
+  ) => _pushUpsertWithCas(
+    entityKey: entityKey,
+    remote: _remote,
+    payload: payload,
+    loadMeta: () async {
+      final row = await db.paymentMethodDao.findById(payload['id'] as String);
+      return row == null
+          ? null
+          : _LocalSyncMeta(
+              isDirty: row.isDirty,
+              localUpdatedAt: row.localUpdatedAt,
+              baseUpdatedAt: row.baseUpdatedAt,
+            );
+    },
+    markSynced: (base) =>
+        db.paymentMethodDao.markSyncedWithBase(payload['id'] as String, base),
+    updateBase: (base) =>
+        db.paymentMethodDao.updateBaseUpdatedAt(payload['id'] as String, base),
+    applyRemote: (json) => pullApply(db, json),
+  );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -373,12 +515,33 @@ class ExpenseSyncAdapter extends EntitySyncAdapter {
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
-    await db.expenseDao.upsert(domain.Expense.fromJson(json).toCompanion());
+    await db.expenseDao.upsert(
+      domain.Expense.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+    );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.expenseDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.expenseDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.expenseDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -438,12 +601,33 @@ class IncomeSyncAdapter extends EntitySyncAdapter {
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
-    await db.incomeDao.upsert(domain.Income.fromJson(json).toCompanion());
+    await db.incomeDao.upsert(
+      domain.Income.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+    );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.incomeDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.incomeDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.incomeDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -503,12 +687,33 @@ class BudgetSyncAdapter extends EntitySyncAdapter {
         remoteUpdatedAt: remoteUpdatedAt,
       );
     }
-    await db.budgetDao.upsert(domain.Budget.fromJson(json).toCompanion());
+    await db.budgetDao.upsert(
+      domain.Budget.fromJson(json).toCompanion(baseUpdatedAt: remoteUpdatedAt),
+    );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.budgetDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.budgetDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.budgetDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -569,13 +774,33 @@ class RecurringRuleSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.recurringDao.upsert(
-      domain.RecurringRule.fromJson(json).toCompanion(),
+      domain.RecurringRule.fromJson(json)
+          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
     );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.recurringDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.recurringDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.recurringDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>
@@ -637,13 +862,33 @@ class AttachmentSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.attachmentDao.upsert(
-      domain.Attachment.fromJson(json).toCompanion(),
+      domain.Attachment.fromJson(json)
+          .toCompanion(baseUpdatedAt: remoteUpdatedAt),
     );
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
-      _remote.upsert(payload);
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
+      _pushUpsertWithCas(
+        entityKey: entityKey,
+        remote: _remote,
+        payload: payload,
+        loadMeta: () async {
+          final row = await db.attachmentDao.findById(payload['id'] as String);
+          return row == null
+              ? null
+              : _LocalSyncMeta(
+                  isDirty: row.isDirty,
+                  localUpdatedAt: row.localUpdatedAt,
+                  baseUpdatedAt: row.baseUpdatedAt,
+                );
+        },
+        markSynced: (base) =>
+            db.attachmentDao.markSyncedWithBase(payload['id'] as String, base),
+        updateBase: (base) =>
+            db.attachmentDao.updateBaseUpdatedAt(payload['id'] as String, base),
+        applyRemote: (json) => pullApply(db, json),
+      );
 
   @override
   Future<void> pushSoftDelete(String id, DateTime now) =>

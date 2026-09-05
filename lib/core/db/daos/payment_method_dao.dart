@@ -44,6 +44,22 @@ class PaymentMethodDao extends DatabaseAccessor<AppDatabase>
         ),
       );
 
+  /// See `CategoryDao.markSyncedWithBase`.
+  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+      (update(paymentMethods)..where((t) => t.id.equals(id))).write(
+        PaymentMethodsCompanion(
+          isDirty: const Value(false),
+          syncStatus: const Value('synced'),
+          baseUpdatedAt: Value(baseUpdatedAt),
+        ),
+      );
+
+  /// See `CategoryDao.updateBaseUpdatedAt`.
+  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+      (update(paymentMethods)..where((t) => t.id.equals(id))).write(
+        PaymentMethodsCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
+      );
+
   Future<int> hardDelete(String id) =>
       (delete(paymentMethods)..where((t) => t.id.equals(id))).go();
 }

@@ -17,6 +17,12 @@ class Categories extends Table {
   DateTimeColumn get localUpdatedAt => dateTime().nullable()();
   BoolColumn get isDirty => boolean().withDefault(const Constant(false))();
 
+  /// The row's `updated_at` as of the last time this device confirmed it
+  /// matched the server (a pull, or this device's own successful push) —
+  /// the compare-and-swap base for the next push (spec §13 Test 5 / D12).
+  /// Null means "no confirmed server state yet" (a locally-created row).
+  DateTimeColumn get baseUpdatedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

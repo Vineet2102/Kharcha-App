@@ -99,16 +99,26 @@ void main() {
   });
 
   test(
-    'a successful push removes the outbox entry and marks the local row synced',
+    'a successful upsert push removes the outbox entry (pushUpsert owns '
+    'stamping the local row synced — see entity_sync_adapters.dart)',
     () async {
       await enqueue(entity: 'expense', entityId: 'e1');
 
       await processor.process();
 
       expect(await db.outboxDao.dueEntries(DateTime.now().toUtc()), isEmpty);
-      expect(expenseAdapter.syncedIds, ['e1']);
+      expect(expenseAdapter.upserts, hasLength(1));
     },
   );
+
+  test('a successful delete push removes the outbox entry and marks the local row synced', () async {
+    await enqueue(entity: 'expense', entityId: 'e1', op: 'delete');
+
+    await processor.process();
+
+    expect(await db.outboxDao.dueEntries(DateTime.now().toUtc()), isEmpty);
+    expect(expenseAdapter.syncedIds, ['e1']);
+  });
 
   test(
     'a permanent failure (RLS denial) marks the entry failed and never retries',

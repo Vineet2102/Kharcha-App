@@ -44,6 +44,28 @@ class CategoryDao extends DatabaseAccessor<AppDatabase>
         ),
       );
 
+  /// Like [markSynced], but also stamps the compare-and-swap base to
+  /// [baseUpdatedAt] (the value this device just successfully pushed) —
+  /// used by `pushUpsert`'s conflict-resolution path (see docs/DECISIONS.md,
+  /// Gate 4 2026-09-05 fix).
+  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+      (update(categories)..where((t) => t.id.equals(id))).write(
+        CategoriesCompanion(
+          isDirty: const Value(false),
+          syncStatus: const Value('synced'),
+          baseUpdatedAt: Value(baseUpdatedAt),
+        ),
+      );
+
+  /// Refreshes the compare-and-swap base to the server's current value
+  /// without touching `isDirty`/`updatedAt` — used when a push conflict is
+  /// resolved in favour of the (still-pending) local edit, so the next push
+  /// attempt's compare-and-swap uses the up-to-date base.
+  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+      (update(categories)..where((t) => t.id.equals(id))).write(
+        CategoriesCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
+      );
+
   Future<int> hardDelete(String id) =>
       (delete(categories)..where((t) => t.id.equals(id))).go();
 }

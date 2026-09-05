@@ -24,7 +24,10 @@ extension CategoryRowMapper on Category {
 }
 
 extension CategoryDomainMapper on domain.Category {
-  CategoriesCompanion toCompanion({bool dirty = false}) => CategoriesCompanion(
+  CategoriesCompanion toCompanion({
+    bool dirty = false,
+    DateTime? baseUpdatedAt,
+  }) => CategoriesCompanion(
     id: Value(id),
     householdId: Value(householdId),
     name: Value(name),
@@ -38,5 +41,8 @@ extension CategoryDomainMapper on domain.Category {
     deletedAt: Value(deletedAt),
     isDirty: Value(dirty),
     syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
   );
 }

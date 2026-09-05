@@ -26,21 +26,25 @@ extension BudgetRowMapper on Budget {
 }
 
 extension BudgetDomainMapper on domain.Budget {
-  BudgetsCompanion toCompanion({bool dirty = false}) => BudgetsCompanion(
-    id: Value(id),
-    householdId: Value(householdId),
-    scope: Value(scope.name),
-    userId: Value(userId),
-    categoryId: Value(categoryId),
-    amountPaise: Value(amountPaise),
-    periodMonth: Value(periodMonth),
-    isRollover: Value(isRollover),
-    alertThresholdPct: Value(alertThresholdPct),
-    createdBy: Value(createdBy),
-    createdAt: Value(createdAt),
-    updatedAt: Value(updatedAt),
-    deletedAt: Value(deletedAt),
-    isDirty: Value(dirty),
-    syncStatus: Value(dirty ? 'pending' : 'synced'),
-  );
+  BudgetsCompanion toCompanion({bool dirty = false, DateTime? baseUpdatedAt}) =>
+      BudgetsCompanion(
+        id: Value(id),
+        householdId: Value(householdId),
+        scope: Value(scope.name),
+        userId: Value(userId),
+        categoryId: Value(categoryId),
+        amountPaise: Value(amountPaise),
+        periodMonth: Value(periodMonth),
+        isRollover: Value(isRollover),
+        alertThresholdPct: Value(alertThresholdPct),
+        createdBy: Value(createdBy),
+        createdAt: Value(createdAt),
+        updatedAt: Value(updatedAt),
+        deletedAt: Value(deletedAt),
+        isDirty: Value(dirty),
+        syncStatus: Value(dirty ? 'pending' : 'synced'),
+        baseUpdatedAt: baseUpdatedAt == null
+            ? const Value.absent()
+            : Value(baseUpdatedAt),
+      );
 }

@@ -15,6 +15,9 @@ class PaymentMethods extends Table {
   DateTimeColumn get localUpdatedAt => dateTime().nullable()();
   BoolColumn get isDirty => boolean().withDefault(const Constant(false))();
 
+  /// See `Categories.baseUpdatedAt`.
+  DateTimeColumn get baseUpdatedAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

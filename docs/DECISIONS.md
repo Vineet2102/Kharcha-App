@@ -994,3 +994,131 @@ second physical/emulated device — T-9.4's cross-device race is instead
 covered by the `outbox_processor_test.dart` cases that script "device A's
 push succeeds, device B's conflicting push is discarded" against the same
 local outbox, following the same precedent as Gate 4's two-device scenario.
+
+## 2026-09-05 — Gate 4 two-device live re-verification
+
+### Bug found, not yet fixed — reconciliation is last-device-to-push-wins, not newest-edit-wins
+
+Gate 4's originally-deferred scenario — two real devices editing the same
+expense offline, then reconciling online — was run live for the first
+time (Phase 5+ now provides the real write UI it needed). Two emulators:
+`kharcha_test` as Vineet (admin), a newly created `kharcha_test_2` as
+Rupesh (member), both taken fully offline (`svc wifi disable` +
+`svc data disable`, confirmed via `dumpsys connectivity`) and both editing
+the same shared expense. Vineet edited first (T1); ~75s later, still
+offline, Rupesh edited the same row again (T2, chronologically newer).
+Rupesh's device was brought online first and pushed cleanly. Vineet's
+device was brought online next and pushed *its* still-dirty, older T1
+edit — which silently overwrote Rupesh's newer T2 edit on the server.
+Rupesh's device then received Vineet's older edit back via its realtime
+pull, replacing his own newer edit locally with no warning.
+
+Both devices converged to an identical, non-corrupted state — no crash,
+no duplicate rows, no permanent fork — so the specific concern Gate 4 had
+flagged as unverified (does reconciliation actually converge?) is
+resolved. But the resolution mechanism is **last-device-to-push-wins**,
+not **newest-edit-wins**: `TableRemoteDataSource.upsert()`
+(`table_remote_data_source.dart`) is an unconditional
+`.upsert(payload, onConflict: 'id')` with no check against the row's
+current server state, so whichever device happens to push second always
+overwrites, regardless of which edit is actually newer. Confirmed via
+`adb logcat` on both devices that `_logConflictLoss`
+(`entity_sync_adapters.dart`) never fired — it only warns when the
+*receiving* device's own local copy is still dirty at pull time, and
+Rupesh's device was already clean (its own push had already succeeded)
+when the older edit arrived, so the overwrite looked like an ordinary
+sync, not a conflict.
+
+This means spec §13 Test 5 ("resolves ... without data loss on the losing
+side ... the losing version is logged") holds only for the narrower race
+`entity_sync_adapters_test.dart`/T-4.6 already covers deterministically —
+a device that is *still dirty* when it pulls a newer remote row — not for
+this literal two-independent-device case, where the losing edit can
+vanish silently with no log entry and no user-visible indication. **Not
+yet fixed.** Closing the gap would need `pushUpsert` to carry an
+optimistic-concurrency check (e.g., a conditional update keyed on the
+row's current `updated_at`, or a Postgres trigger/RPC that rejects a push
+older than the row it would overwrite) so a genuine cross-device conflict
+is detected and logged regardless of push order, rather than only when
+the receiving device happens to still be dirty.
+
+Test data (the shared expense and both edits) was deleted afterward on
+both devices and in Supabase; the household's real data was left
+unchanged.
+
+## 2026-09-05 — Gate 4 fix: compare-and-swap on push
+
+Closed the gap above: `pushUpsert` no longer does a plain unconditional
+`.upsert()`. Every push-capable table (`categories`, `payment_methods`,
+`expenses`, `incomes`, `budgets`, `recurring_rules`, `attachments`) gained
+a `base_updated_at` column (schema v2 → v3) — the row's `updated_at` as of
+the last time *this device* confirmed it matched the server (a pull, or
+this device's own successful push). It is deliberately a separate column
+from `updated_at`/`local_updated_at`: once a local edit overwrites
+`updated_at` with the new value, the pre-edit "confirmed" value would
+otherwise be lost, and that's exactly the value a compare-and-swap needs
+to check against.
+
+`TableRemoteDataSource.upsertIfBaseMatches()` does the actual CAS: if
+`base` is null (a locally-created row with no server counterpart yet) it's
+a plain upsert; otherwise it's `.update(payload).eq('id', id).eq('updated_at',
+base)` — a single atomic UPDATE that only touches the row if the server's
+`updated_at` still equals what this device last confirmed. No Postgres
+migration was needed — `updated_at` already exists server-side; this is
+client-side filtering only.
+
+On a CAS mismatch (someone else moved the row), `EntitySyncAdapter`'s new
+`_pushUpsertWithCas()` helper (`entity_sync_adapters.dart`) fetches the
+current server row and resolves it exactly like a pull-time D12 conflict —
+by comparing timestamps, not by who pushed first:
+- **the local edit is genuinely newer** (dirty and `local_updated_at` is
+  after the server's `updated_at`) → `base_updated_at` is refreshed to the
+  server's current value and a `SyncConflictRetryException` is thrown.
+  `ErrorMapper` classifies this as transient (falls through to
+  `UnknownFailure`), so `OutboxProcessor`'s existing exponential backoff
+  retries it — by then the base is correct, so the retry's CAS succeeds
+  against whatever is actually on the server;
+- **otherwise the remote row wins** — applied locally by calling the
+  adapter's own `pullApply()` (the exact same overwrite-and-log-the-loss
+  path a routine pull uses), and the outbox entry is dropped: there is
+  nothing left to push once the local edit has been discarded.
+
+Concretely, replaying the Vineet/Rupesh scenario above with this fix:
+Rupesh's push (base = T0) succeeds first, server moves to T2. Vineet's
+push (base = T0, now stale) gets a CAS mismatch; the fetched server row
+(T2, Rupesh's edit) is compared against Vineet's `local_updated_at` (T1) —
+T2 is newer, so Vineet's device discards its own edit, logs the loss via
+`AppLogger`, and adopts Rupesh's T2 edit. If the timing were reversed
+(Vineet's T1 edit pushes second but is *not* actually newer than what's on
+the server), the outcome is now determined by timestamp comparison either
+way — never by which device happened to push last.
+
+`pushUpsert`'s abstract signature gained an `AppDatabase db` parameter (it
+now needs to read/write the local row during conflict resolution) and, for
+the `upsert` op only, fully owns the local row's post-push state — success
+stamps it via a new `markSyncedWithBase(id, base)` DAO method (like
+`markSynced` but also updates `base_updated_at`); a conflict resolved in
+the remote's favour goes through `pullApply` instead. `OutboxProcessor`
+was restructured so only the `upsert` case skips the old blanket
+`adapter.markLocalSynced()` call afterward — `delete`/`upload` still use
+it unchanged.
+
+**Schema migration (v2 → v3)**: existing devices already have a real local
+database with no `base_updated_at` column. The migration adds it to all 7
+tables and backfills `base_updated_at = updated_at` for every row that is
+*not* currently dirty — a clean row's `updated_at` already equals the
+server's by definition, so this is exact, not a guess. A row that happens
+to be mid-edit (dirty) at the moment of the upgrade is left with
+`base_updated_at = null`, which falls back to a plain unconditional
+upsert for that one specific in-flight edit — the same behaviour as
+before the fix, but only for that single edit; it self-heals the moment
+that edit's push succeeds and stamps a real base. Verified against a
+hand-built v2 sqlite file (not `AppDatabase.forTesting`, which always
+starts fresh at the latest schema) in
+`test/unit/db/migration_v2_to_v3_test.dart`.
+
+**Not re-verified live this session** (no emulator available in this
+environment) — Gate 4 stays at **partial** in PROGRESS.md until the exact
+two-device scenario from 2026-09-05 is re-run live and confirmed to now
+converge on Rupesh's (newer) edit with a logged conflict on Vineet's
+device, rather than the reverse.

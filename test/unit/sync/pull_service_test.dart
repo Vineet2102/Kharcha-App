@@ -52,7 +52,7 @@ class FakePagingAdapter extends EntitySyncAdapter {
   }
 
   @override
-  Future<void> pushUpsert(Map<String, dynamic> payload) =>
+  Future<void> pushUpsert(AppDatabase db, Map<String, dynamic> payload) =>
       throw UnimplementedError();
 
   @override

@@ -32,6 +32,38 @@ class TableRemoteDataSource {
   Future<void> upsert(Map<String, dynamic> payload) =>
       _client.from(table).upsert(payload, onConflict: 'id');
 
+  /// Compare-and-swap push (spec §13 Test 5 / D12, see docs/DECISIONS.md's
+  /// Gate 4 2026-09-05 fix): succeeds unconditionally when [expectedBase] is
+  /// null (no confirmed server row yet — a plain create), otherwise only
+  /// when the row's current `updated_at` still equals [expectedBase].
+  /// Returns whether the write actually happened — `false` means someone
+  /// else moved the row since, a genuine conflict for the caller to resolve.
+  Future<bool> upsertIfBaseMatches(
+    Map<String, dynamic> payload,
+    DateTime? expectedBase,
+  ) async {
+    if (expectedBase == null) {
+      await _client.from(table).upsert(payload, onConflict: 'id');
+      return true;
+    }
+    final updated = await _client
+        .from(table)
+        .update(payload)
+        .eq('id', payload['id'] as String)
+        .eq('updated_at', expectedBase.toIso8601String())
+        .select('id');
+    return (updated as List).isNotEmpty;
+  }
+
+  /// The current server row for [id], or null if it no longer exists
+  /// (already hard-deleted, or never created) — used to resolve a push-time
+  /// conflict from [upsertIfBaseMatches].
+  Future<Map<String, dynamic>?> fetchById(String id) async {
+    final rows = await _client.from(table).select().eq('id', id).limit(1);
+    final list = List<Map<String, dynamic>>.from(rows);
+    return list.isEmpty ? null : list.first;
+  }
+
   Future<void> softDelete(String id, DateTime now) => _client
       .from(table)
       .update({

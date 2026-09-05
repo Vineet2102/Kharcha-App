@@ -41,6 +41,22 @@ class AttachmentDao extends DatabaseAccessor<AppDatabase>
         ),
       );
 
+  /// See `CategoryDao.markSyncedWithBase`.
+  Future<void> markSyncedWithBase(String id, DateTime baseUpdatedAt) =>
+      (update(attachments)..where((t) => t.id.equals(id))).write(
+        AttachmentsCompanion(
+          isDirty: const Value(false),
+          syncStatus: const Value('synced'),
+          baseUpdatedAt: Value(baseUpdatedAt),
+        ),
+      );
+
+  /// See `CategoryDao.updateBaseUpdatedAt`.
+  Future<void> updateBaseUpdatedAt(String id, DateTime baseUpdatedAt) =>
+      (update(attachments)..where((t) => t.id.equals(id))).write(
+        AttachmentsCompanion(baseUpdatedAt: Value(baseUpdatedAt)),
+      );
+
   Future<int> hardDelete(String id) =>
       (delete(attachments)..where((t) => t.id.equals(id))).go();
 }

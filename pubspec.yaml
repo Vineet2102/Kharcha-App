@@ -80,6 +80,12 @@ dev_dependencies:
   json_serializable: ^6.14.1
   build_runner: ^2.16.1
   mocktail: ^1.0.5
+  # Only used directly by test/unit/db/migration_v2_to_v3_test.dart, to
+  # build a real v2-shaped sqlite file and fake path_provider's directory
+  # for the Gate 4 migration regression test (see docs/DECISIONS.md).
+  sqlite3: ^3.5.2
+  path_provider_platform_interface: ^2.1.3
+  plugin_platform_interface: ^2.1.8
   integration_test:
     sdk: flutter
 flutter:

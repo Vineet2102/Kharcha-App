@@ -26,21 +26,26 @@ extension AttachmentRowMapper on Attachment {
 }
 
 extension AttachmentDomainMapper on domain.Attachment {
-  AttachmentsCompanion toCompanion({bool dirty = false}) =>
-      AttachmentsCompanion(
-        id: Value(id),
-        householdId: Value(householdId),
-        expenseId: Value(expenseId),
-        storagePath: Value(storagePath),
-        mimeType: Value(mimeType),
-        sizeBytes: Value(sizeBytes),
-        widthPx: Value(widthPx),
-        heightPx: Value(heightPx),
-        uploadedBy: Value(uploadedBy),
-        createdAt: Value(createdAt),
-        updatedAt: Value(updatedAt),
-        deletedAt: Value(deletedAt),
-        isDirty: Value(dirty),
-        syncStatus: Value(dirty ? 'pending' : 'synced'),
-      );
+  AttachmentsCompanion toCompanion({
+    bool dirty = false,
+    DateTime? baseUpdatedAt,
+  }) => AttachmentsCompanion(
+    id: Value(id),
+    householdId: Value(householdId),
+    expenseId: Value(expenseId),
+    storagePath: Value(storagePath),
+    mimeType: Value(mimeType),
+    sizeBytes: Value(sizeBytes),
+    widthPx: Value(widthPx),
+    heightPx: Value(heightPx),
+    uploadedBy: Value(uploadedBy),
+    createdAt: Value(createdAt),
+    updatedAt: Value(updatedAt),
+    deletedAt: Value(deletedAt),
+    isDirty: Value(dirty),
+    syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
+  );
 }

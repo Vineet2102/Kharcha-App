@@ -85,18 +85,26 @@ class OutboxProcessor {
     try {
       switch (entry.op) {
         case 'upsert':
+          // pushUpsert fully owns the local row's post-push state (success
+          // stamp, or conflict resolution) — see entity_sync_adapters.dart —
+          // so, unlike the other ops, it needs no follow-up markLocalSynced.
           await adapter.pushUpsert(
+            db,
             jsonDecode(entry.payload) as Map<String, dynamic>,
           );
+          await db.outboxDao.remove(entry.id);
         case 'delete':
           await adapter.pushSoftDelete(entry.entityId, now);
+          await db.outboxDao.remove(entry.id);
+          await adapter.markLocalSynced(db, entry.entityId);
         case 'upload':
+          // Ends in adapter.pushUpsert(row), which owns local state the
+          // same way the 'upsert' case above does.
           await _processUpload(adapter, entry);
+          await db.outboxDao.remove(entry.id);
         default:
           throw StateError('Unknown outbox op: ${entry.op}');
       }
-      await db.outboxDao.remove(entry.id);
-      await adapter.markLocalSynced(db, entry.entityId);
     } catch (error, stackTrace) {
       if (await _handleRecurrenceDuplicate(entry, error)) return;
       await _handleFailure(entry, error, stackTrace);
@@ -148,7 +156,7 @@ class OutboxProcessor {
     final storagePath = payload['storage_path'] as String;
     final row = Map<String, dynamic>.from(payload['row'] as Map);
     await client.storage.from('receipts').upload(storagePath, File(localPath));
-    await adapter.pushUpsert(row);
+    await adapter.pushUpsert(db, row);
   }
 
   Future<void> _handleFailure(
