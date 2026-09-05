@@ -9,6 +9,7 @@ import '../../../core/time/app_time.dart';
 import '../../../data/repositories/budget_repository.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
+import '../../../data/repositories/recurring_repository.dart';
 import '../../../data/repositories/report_repository.dart';
 import '../../../data/sync/sync_engine.dart';
 import '../../../domain/models/budget.dart' as domain;
@@ -18,15 +19,15 @@ import '../../../domain/models/enums.dart';
 import '../../../domain/models/expense.dart' as domain;
 import '../../../domain/models/expense_filter.dart';
 import '../../../domain/models/profile.dart' as domain;
+import '../../../domain/models/recurring_rule.dart' as domain;
 import '../../../domain/models/report.dart';
 import '../../../routing/routes.dart';
 import '../../expenses/controllers/expense_list_preset_filter_controller.dart';
 import '../controllers/selected_month_controller.dart';
 
-/// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5, T-8.4).
-/// Ships cards 1, 2, 3, 4, 5 — pending recurring (card 6, Phase 9) lands
-/// with its own phase. Card 7 (the sync/offline banner) is already rendered
-/// above every tab by [AppShell].
+/// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5, T-8.4,
+/// T-9.5). Ships cards 1-6. Card 7 (the sync/offline banner) is already
+/// rendered above every tab by [AppShell].
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -45,6 +46,8 @@ class DashboardScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             _BudgetProgressCard(monthStart: month),
             const SizedBox(height: 12),
+            const _PendingRecurringCard(),
+            const SizedBox(height: 12),
             _MemberBreakdownCard(monthStart: month),
             const SizedBox(height: 12),
             _TopCategoriesCard(monthStart: month),
@@ -52,6 +55,98 @@ class DashboardScreen extends ConsumerWidget {
             const _RecentActivityCard(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Card 6 (spec §11.8, T-9.5): every rule with `auto_post = false` that is
+/// currently due (`RecurringDao.dueOn`, same live stream the list screen
+/// reads), each with Post/Skip. Absent entirely when nothing is pending,
+/// same "no cards for empty state" precedent as the budget card.
+class _PendingRecurringCard extends ConsumerWidget {
+  const _PendingRecurringCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rulesAsync = ref.watch(householdRecurringRulesProvider);
+    final rules = rulesAsync.value ?? const <domain.RecurringRule>[];
+    final today = AppTime.calendarDate(DateTime.now().toUtc());
+    final pending =
+        rules
+            .where(
+              (r) => r.isActive && !r.autoPost && !r.nextDueDate.isAfter(today),
+            )
+            .toList()
+          ..sort((a, b) => a.nextDueDate.compareTo(b.nextDueDate));
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return _DashboardCard(
+      title: 'Pending confirmations',
+      onSeeAll: () => context.push(AppRoutes.recurring),
+      child: Column(
+        children: [
+          for (final rule in pending) _PendingRecurringRow(rule: rule),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingRecurringRow extends ConsumerStatefulWidget {
+  const _PendingRecurringRow({required this.rule});
+  final domain.RecurringRule rule;
+
+  @override
+  ConsumerState<_PendingRecurringRow> createState() =>
+      _PendingRecurringRowState();
+}
+
+class _PendingRecurringRowState extends ConsumerState<_PendingRecurringRow> {
+  bool _busy = false;
+
+  Future<void> _act(Future<void> Function(String) action) async {
+    setState(() => _busy = true);
+    await action(widget.rule.id);
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = ref.read(recurringRepositoryProvider);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.rule.title),
+                Text(
+                  widget.rule.amount.format(),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (_busy)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else ...[
+            TextButton(
+              onPressed: () => _act(repo.skipPending),
+              child: const Text('Skip'),
+            ),
+            FilledButton(
+              onPressed: () => _act(repo.postPending),
+              child: const Text('Post'),
+            ),
+          ],
+        ],
       ),
     );
   }

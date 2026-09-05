@@ -106,22 +106,22 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
     final windowStart = spentAt.subtract(const Duration(minutes: 2));
     final windowEnd = spentAt.add(const Duration(minutes: 2));
     final query = select(expenses)
-      ..where(
-        (t) {
-          Expression<bool> cond = t.householdId.equals(householdId) &
-              t.userId.equals(userId) &
-              t.amountPaise.equals(amountPaise) &
-              t.deletedAt.isNull() &
-              t.spentAt.isBiggerOrEqualValue(windowStart) &
-              t.spentAt.isSmallerOrEqualValue(windowEnd);
-          cond = cond &
-              (categoryId == null
-                  ? t.categoryId.isNull()
-                  : t.categoryId.equals(categoryId));
-          if (excludingId != null) cond = cond & t.id.equals(excludingId).not();
-          return cond;
-        },
-      )
+      ..where((t) {
+        Expression<bool> cond =
+            t.householdId.equals(householdId) &
+            t.userId.equals(userId) &
+            t.amountPaise.equals(amountPaise) &
+            t.deletedAt.isNull() &
+            t.spentAt.isBiggerOrEqualValue(windowStart) &
+            t.spentAt.isSmallerOrEqualValue(windowEnd);
+        cond =
+            cond &
+            (categoryId == null
+                ? t.categoryId.isNull()
+                : t.categoryId.equals(categoryId));
+        if (excludingId != null) cond = cond & t.id.equals(excludingId).not();
+        return cond;
+      })
       ..limit(1);
     final rows = await query.get();
     return rows.isNotEmpty;
@@ -130,17 +130,21 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
   /// The most recently used payment method for [userId] — the Add Expense
   /// form's default (spec §11.2).
   Future<String?> lastUsedPaymentMethodId(String userId) async {
-    final row = await (select(expenses)
-          ..where((t) => t.userId.equals(userId) & t.deletedAt.isNull())
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
-          ..limit(1))
-        .getSingleOrNull();
+    final row =
+        await (select(expenses)
+              ..where((t) => t.userId.equals(userId) & t.deletedAt.isNull())
+              ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+              ..limit(1))
+            .getSingleOrNull();
     return row?.paymentMethodId;
   }
 
   /// Up to 8 category ids this user has used most often, most-used first —
   /// the Add Expense form's chip row (spec §11.2).
-  Future<List<String>> mostUsedCategoryIds(String userId, {int limit = 8}) async {
+  Future<List<String>> mostUsedCategoryIds(
+    String userId, {
+    int limit = 8,
+  }) async {
     final countExpr = expenses.id.count();
     final query = selectOnly(expenses)
       ..addColumns([expenses.categoryId, countExpr])
@@ -186,7 +190,9 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
     required String Function(Expense row) valueOf,
   }) async {
     final query = select(expenses)
-      ..where((t) => t.userId.equals(userId) & t.deletedAt.isNull() & matches(t))
+      ..where(
+        (t) => t.userId.equals(userId) & t.deletedAt.isNull() & matches(t),
+      )
       ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
       ..limit(200);
     final rows = await query.get();
@@ -203,6 +209,23 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
 
   Future<Expense?> findById(String id) =>
       (select(expenses)..where((t) => t.id.equals(id))).getSingleOrNull();
+
+  /// The already-posted expense for one recurring occurrence, if any —
+  /// mirrors the server's `expenses_recurrence_unique` index and guards the
+  /// posting engine (spec §11.8, T-9.3/T-9.4) against re-creating an
+  /// occurrence it already posted locally (e.g. after a crash between
+  /// creating the row and advancing `next_due_date`).
+  Future<Expense?> findByOccurrence(
+    String recurringRuleId,
+    DateTime occurrenceDate,
+  ) =>
+      (select(expenses)..where(
+            (t) =>
+                t.recurringRuleId.equals(recurringRuleId) &
+                t.occurrenceDate.equals(occurrenceDate) &
+                t.deletedAt.isNull(),
+          ))
+          .getSingleOrNull();
 
   Stream<Expense?> watchById(String id) =>
       (select(expenses)..where((t) => t.id.equals(id))).watchSingleOrNull();
@@ -243,7 +266,9 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
     (t) => t.paymentMethodId.equals(paymentMethodId) & t.deletedAt.isNull(),
   );
 
-  Future<int> _countWhere(Expression<bool> Function($ExpensesTable t) pred) async {
+  Future<int> _countWhere(
+    Expression<bool> Function($ExpensesTable t) pred,
+  ) async {
     final query = selectOnly(expenses)
       ..addColumns([expenses.id.count()])
       ..where(pred(expenses));

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -160,5 +161,109 @@ void main() {
     await processor.process();
 
     expect(expenseAdapter.deletes, ['e1']);
+  });
+
+  group('recurring occurrence duplicate (T-9.4)', () {
+    Future<void> insertLocalExpense(String id) => db.expenseDao.upsert(
+      ExpensesCompanion.insert(
+        id: id,
+        householdId: 'h1',
+        userId: 'u1',
+        amountPaise: 500,
+        spentAt: DateTime.utc(2026, 1, 1),
+        spentOn: DateTime.utc(2026, 1, 1),
+        recurringRuleId: const Value('r1'),
+        occurrenceDate: Value(DateTime.utc(2026, 1, 1)),
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 1, 1),
+      ),
+    );
+
+    test(
+      'a unique-index violation on a recurring occurrence is treated as '
+      'success: the local duplicate is discarded, not marked failed',
+      () async {
+        await insertLocalExpense('e2');
+        expenseAdapter.errorToThrow = const PostgrestException(
+          message:
+              'duplicate key value violates unique constraint '
+              '"expenses_recurrence_unique"',
+          code: '23505',
+        );
+        await enqueue(
+          entity: 'expense',
+          entityId: 'e2',
+          payload: {
+            'id': 'e2',
+            'recurring_rule_id': 'r1',
+            'occurrence_date': '2026-01-01',
+          },
+        );
+
+        await processor.process();
+
+        expect(await db.outboxDao.dueEntries(DateTime.now().toUtc()), isEmpty);
+        final rows = await (db.select(db.outboxEntries)).get();
+        expect(rows, isEmpty); // not parked as 'failed'
+        expect(await db.expenseDao.findById('e2'), isNull);
+      },
+    );
+
+    test('a plain unique violation with no recurring_rule_id is still a '
+        'normal permanent failure', () async {
+      expenseAdapter.errorToThrow = const PostgrestException(
+        message: 'duplicate key value violates unique constraint',
+        code: '23505',
+      );
+      await enqueue(entity: 'expense', entityId: 'e3');
+
+      await processor.process();
+
+      final rows = await (db.select(db.outboxEntries)).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.status, 'failed');
+    });
+
+    test('two devices racing: the first push succeeds, the second is '
+        'discarded as a duplicate', () async {
+      await insertLocalExpense('e1');
+      await insertLocalExpense('e2');
+      expenseAdapter.upsertErrorQueue.addAll([
+        null,
+        const PostgrestException(
+          message:
+              'duplicate key value violates unique constraint '
+              '"expenses_recurrence_unique"',
+          code: '23505',
+        ),
+      ]);
+      await enqueue(
+        entity: 'expense',
+        entityId: 'e1',
+        payload: {
+          'id': 'e1',
+          'recurring_rule_id': 'r1',
+          'occurrence_date': '2026-01-01',
+        },
+        createdAt: DateTime.utc(2026, 1, 1),
+      );
+      await enqueue(
+        entity: 'expense',
+        entityId: 'e2',
+        payload: {
+          'id': 'e2',
+          'recurring_rule_id': 'r1',
+          'occurrence_date': '2026-01-01',
+        },
+        createdAt: DateTime.utc(2026, 1, 2),
+      );
+
+      await processor.process();
+
+      expect(await db.outboxDao.dueEntries(DateTime.now().toUtc()), isEmpty);
+      expect(await (db.select(db.outboxEntries)).get(), isEmpty);
+      expect(await db.expenseDao.findById('e1'), isNotNull);
+      expect(await db.expenseDao.findById('e2'), isNull);
+    });
   });
 }

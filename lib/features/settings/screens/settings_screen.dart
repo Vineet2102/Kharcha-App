@@ -70,6 +70,11 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Budgets'),
             onTap: () => context.push(AppRoutes.budgets),
           ),
+          ListTile(
+            leading: const Icon(Icons.repeat),
+            title: const Text('Recurring'),
+            onTap: () => context.push(AppRoutes.recurring),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

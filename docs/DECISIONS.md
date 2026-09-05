@@ -857,3 +857,140 @@ that satisfies the acceptance criteria, and recorded here with a rationale.
   `now` (instants) and a separate `midnight` (date-only fields) so the
   fixtures reflect this app's actual convention instead of accidentally
   depending on the bug being fixed.
+
+## 2026-09-05 — Phase 9 (Recurring)
+
+### The SQL `advance_due_date()`'s dead `p_weekday` parameter isn't mirrored
+
+Spec §6.6's SQL function accepts `p_weekday` alongside `p_dom`, but no
+branch of the function — daily/weekly/monthly/yearly — actually reads it;
+weekly recurrence just steps by whole weeks from the anchor date, which
+already preserves the weekday on its own. `domain/models/recurring_schedule.dart`'s
+`advanceDueDate` mirrors every branch's real behaviour but drops this
+parameter rather than carrying a genuinely-dead one into Dart. Recorded here
+in case a future spec revision gives `weekday` real meaning (e.g. "every
+Tuesday" independent of the anchor date) — that would need a new branch in
+both the SQL and this Dart mirror, not just wiring the existing parameter
+through.
+
+### Yearly recurrence deliberately left unclamped, same as the SQL
+
+The monthly branch explicitly clamps the target day to the last valid day
+of the target month (spec's own `least(...)` — the 31st → 28th/29th in
+February). The yearly branch has no equivalent clamp in the SQL, and
+`advanceDueDate` doesn't add one either: a rule anchored on 29 Feb of a leap
+year rolls over to 1 Mar in a non-leap target year. Verified this is safe to
+leave unclamped rather than a latent bug worth "fixing" beyond the spec:
+Postgres's `date + interval 'N years'` and Dart's `DateTime.utc(y, m, d)`
+both overflow a nonexistent Feb 29 into March 1 the same way (field-by-field
+construction with day-overflow, not a lookup-and-clamp) — the two stay in
+agreement without any extra code. Covered by a unit test
+(`recurring_schedule_test.dart`) precisely so a future refactor that adds
+"helpful" clamping here doesn't silently start disagreeing with the server.
+
+### The posting engine splits into three tiers, not one loop (T-9.3/T-9.5)
+
+Spec §11.8's pseudocode reads as a single loop ("advance next_due_date;
+repeat until it is in the future") regardless of `auto_post`. Read
+literally, a `false`-auto_post rule with several overdue occurrences would
+auto-advance past all but the last one in the background — but T-9.5's own
+acceptance criterion ("Skip advances next_due_date without creating a
+transaction") only makes sense as a *user-driven*, one-occurrence-at-a-time
+action. `RecurringPostingEngine` resolves this by treating the pseudocode's
+loop as describing the *auto-post* path literally (batch-catches-up,
+capped at 24 per run, entirely inside `sync()`), and treating the
+non-auto-post path as: leave `next_due_date` frozen at the earliest
+still-askable occurrence (so it keeps showing as "pending" via
+`RecurringDao.dueOn`, unchanged run after run) until `postOneOccurrence`/
+`skipOneOccurrence` — both single-step, called only from the Dashboard's
+Post/Skip buttons (`RecurringRepository.postPending`/`skipPending`) —
+advance it by exactly one. The "pending confirmations expire after 30
+days" rule (spec §11.8's last bullet) is the one piece of automatic
+behaviour that *does* apply to the manual path: occurrences older than 30
+days are silently skipped (advanced past, no transaction, no dashboard
+entry) inside the same sync-time pass, capped at the same 24-per-run to
+bound a rule dormant for years.
+
+### Local idempotency check is separate from the cross-device duplicate guard (T-9.4)
+
+Two different races are handled two different ways. Within *this* device:
+`RecurringPostingEngine._createOccurrence` checks
+`ExpenseDao.findByOccurrence`/`IncomeDao.findByOccurrence` before creating a
+row, guarding against the app being killed after creating an occurrence but
+before persisting the rule's advanced `next_due_date` — on the next launch,
+the same `next_due_date` would otherwise regenerate the occurrence with a
+fresh random id. Across *devices*: two phones can each pass this local
+check (neither has the other's row yet) and both enqueue a create; only one
+insert can win the server's `expenses_recurrence_unique`/
+`incomes_recurrence_unique` index. `OutboxProcessor._handleRecurrenceDuplicate`
+catches the loser's `23505` on push (identified by the payload carrying a
+non-null `recurring_rule_id`, not by parsing the constraint name out of the
+error message — robust to the constraint being renamed) and discards the
+local phantom row outright rather than retrying or parking it as
+`'failed'`; the winner's row arrives normally on the next pull. Running the
+posting engine right after the pull (not before) in `SyncEngine.sync()`
+narrows this race further — an occurrence another device already posted is
+usually already visible locally before this device decides whether to post
+its own — but doesn't eliminate it, which is why the outbox-level guard
+still exists as the actual correctness backstop.
+
+### A posted occurrence's `merchant`/`source` carries the rule's title
+
+`recurring_rules` has `title` but `expenses`/`incomes` have no equivalent
+field — only `note`/`merchant` and `note`/`source` respectively. Posting an
+occurrence with `note: rule.note, merchant: ''` would silently lose the
+rule's identity whenever its own `note` was left blank (Expense List and
+Recent Activity both fall back to the category name when `note` is empty,
+never merchant) — a "Netflix" auto-post would just show as "Subscriptions".
+Fixed by mapping `rule.title` onto the expense's `merchant`
+(and the income's `source`), and falling back to it for `note` too when the
+rule's own note is empty, so a posted occurrence is never a bare,
+unlabelled amount.
+
+### A monthly rule always stores an explicit `day_of_month`, never leaves it null
+
+`advanceDueDate`'s monthly branch falls back to `from.day` when
+`dayOfMonth` is `null` — but `from` is *the previous occurrence's own
+(possibly already-clamped) date*, not the rule's original anchor day. A
+rule created on the 31st with `dayOfMonth` left null would step 31 → 28
+(clamped, Feb) → 28 (Mar, now reading `from.day = 28` instead of the
+original 31) and stay stuck at the 28th forever, even in months that do
+have a 31st. `RecurringDetailScreen._save` always resolves
+`dayOfMonth ?? startDate.day` before calling `create`/`update`, so
+`day_of_month` is only ever left unset by direct API/SQL access, never by
+the app's own editor.
+
+### Bug found & fixed — Auto-post switch's subtitle never reflected the toggle
+
+`RecurringDetailScreen`'s `SwitchListTile` for `auto_post` was given a
+`const Text(...)` subtitle hardcoded to the "Off" copy, so toggling it on
+during live verification left the helper text reading "Off: each
+occurrence waits on the Dashboard..." even with the switch itself visibly
+on. Fixed by switching the subtitle to a non-const `Text` keyed off
+`_autoPost`, mirroring the copy the Recurring List already computes
+correctly per-rule from the persisted value.
+
+### Live verification (Gate 9)
+
+`fvm flutter analyze --fatal-infos` clean; `fvm flutter test` green at 176
+tests (28 new: `recurring_schedule_test.dart`'s pure-function coverage of
+`advanceDueDate`/`dueOccurrencesFor`/`previewOccurrences` incl. the 31
+Jan → 28/29 Feb and 24-occurrence-cap cases from T-9.1/T-9.3;
+`recurring_posting_engine_test.dart`'s in-memory-Drift coverage of
+auto-post catch-up, the 30-day pending-expiry sweep, end-date
+deactivation, and `postOneOccurrence`/`skipOneOccurrence`;
+`recurring_repository_test.dart`; 3 new `outbox_processor_test.dart` cases
+for T-9.4). Live-verified on the `kharcha_test` emulator against the real
+Supabase project: created an auto-post "Netflix" ₹499/month rule (day 5,
+today) — the Dashboard's next sync cycle posted it automatically with the
+correct category/merchant, and the rule's `next_due_date` advanced from
+5 Sep to 5 Oct. Created a second, manual "Rent" ₹15,000/month rule — the
+Dashboard's "Pending confirmations" card (card 6) appeared with Skip/Post
+buttons; tapping Post created the expense and advanced `next_due_date`,
+and the card disappeared once nothing was left pending. Both rules and
+their posted expenses were deleted afterward to restore the shared
+household data to its pre-test state. Not independently re-verified on a
+second physical/emulated device — T-9.4's cross-device race is instead
+covered by the `outbox_processor_test.dart` cases that script "device A's
+push succeeds, device B's conflicting push is discarded" against the same
+local outbox, following the same precedent as Gate 4's two-device scenario.

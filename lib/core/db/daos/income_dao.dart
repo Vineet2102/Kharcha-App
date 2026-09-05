@@ -21,6 +21,20 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
   Future<Income?> findById(String id) =>
       (select(incomes)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  /// The already-posted income for one recurring occurrence, if any — see
+  /// `ExpenseDao.findByOccurrence`.
+  Future<Income?> findByOccurrence(
+    String recurringRuleId,
+    DateTime occurrenceDate,
+  ) =>
+      (select(incomes)..where(
+            (t) =>
+                t.recurringRuleId.equals(recurringRuleId) &
+                t.occurrenceDate.equals(occurrenceDate) &
+                t.deletedAt.isNull(),
+          ))
+          .getSingleOrNull();
+
   Stream<Income?> watchById(String id) =>
       (select(incomes)..where((t) => t.id.equals(id))).watchSingleOrNull();
 
@@ -55,7 +69,9 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
   Future<int> countByCategory(String categoryId) async {
     final query = selectOnly(incomes)
       ..addColumns([incomes.id.count()])
-      ..where(incomes.categoryId.equals(categoryId) & incomes.deletedAt.isNull());
+      ..where(
+        incomes.categoryId.equals(categoryId) & incomes.deletedAt.isNull(),
+      );
     final row = await query.getSingle();
     return row.read(incomes.id.count()) ?? 0;
   }

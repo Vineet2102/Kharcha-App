@@ -98,8 +98,40 @@ class OutboxProcessor {
       await db.outboxDao.remove(entry.id);
       await adapter.markLocalSynced(db, entry.entityId);
     } catch (error, stackTrace) {
+      if (await _handleRecurrenceDuplicate(entry, error)) return;
       await _handleFailure(entry, error, stackTrace);
     }
+  }
+
+  /// Spec §11.8/T-9.4: two devices can each create their own local row for
+  /// the same recurring occurrence, but only one insert can win the
+  /// server's `expenses_recurrence_unique`/`incomes_recurrence_unique`
+  /// index. The loser's push fails with a `23505` on that index — not a
+  /// real error, just "someone already posted this occurrence" — so it's
+  /// caught and treated as success: the loser's local phantom row is
+  /// discarded outright (the winner's row arrives on the next pull) and the
+  /// outbox entry is dropped without a retry or a `failed` state.
+  Future<bool> _handleRecurrenceDuplicate(
+    OutboxEntry entry,
+    Object error,
+  ) async {
+    if (entry.op != 'upsert') return false;
+    if (entry.entity != 'expense' && entry.entity != 'income') return false;
+    if (error is! PostgrestException || error.code != '23505') return false;
+    final payload = jsonDecode(entry.payload) as Map<String, dynamic>;
+    if (payload['recurring_rule_id'] == null) return false;
+
+    AppLogger.instance.warn(
+      'Recurring occurrence ${entry.entity}/${entry.entityId} was already '
+      'posted by another device — discarding this device\'s duplicate.',
+    );
+    if (entry.entity == 'expense') {
+      await db.expenseDao.hardDelete(entry.entityId);
+    } else {
+      await db.incomeDao.hardDelete(entry.entityId);
+    }
+    await db.outboxDao.remove(entry.id);
+    return true;
   }
 
   /// Uploads the cached receipt image, then upserts the `attachments` row

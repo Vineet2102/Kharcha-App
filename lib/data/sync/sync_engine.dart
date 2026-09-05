@@ -13,6 +13,7 @@ import '../remote/supabase_client_provider.dart';
 import 'outbox_processor.dart';
 import 'pull_service.dart';
 import 'realtime_listener.dart';
+import 'recurring_posting_engine.dart';
 import 'sync_state.dart';
 import 'sync_state_controller.dart';
 
@@ -31,6 +32,7 @@ class SyncEngine {
     required this.outboxProcessor,
     required this.pullService,
     required this.realtimeListener,
+    required this.recurringPostingEngine,
     required this.outboxDao,
     required this.publish,
   });
@@ -40,6 +42,7 @@ class SyncEngine {
   final OutboxProcessor outboxProcessor;
   final PullService pullService;
   final RealtimeListener realtimeListener;
+  final RecurringPostingEngine recurringPostingEngine;
   final OutboxDao outboxDao;
   final void Function(SyncState state) publish;
 
@@ -102,6 +105,16 @@ class SyncEngine {
       await pullService.pullAll(householdId);
       if (_stopped) return;
 
+      // Recurring posting (spec §11.8, T-9.3) runs after the pull, so an
+      // occurrence another device already posted for a shared rule is
+      // visible locally before this device decides whether to post its
+      // own — then pushes again immediately so a freshly-posted occurrence
+      // (or an advanced `next_due_date`) doesn't wait for the next cycle.
+      await recurringPostingEngine.run(householdId);
+      if (_stopped) return;
+      await outboxProcessor.process();
+      if (_stopped) return;
+
       realtimeListener.start(householdId);
 
       final pending = await outboxDao.pendingCount();
@@ -138,6 +151,7 @@ SyncEngine syncEngine(Ref ref) {
     outboxProcessor: ref.watch(outboxProcessorProvider),
     pullService: ref.watch(pullServiceProvider),
     realtimeListener: ref.watch(realtimeListenerProvider),
+    recurringPostingEngine: ref.watch(recurringPostingEngineProvider),
     outboxDao: ref.watch(appDatabaseProvider).outboxDao,
     publish: (state) =>
         ref.read(syncStateControllerProvider.notifier).publish(state),

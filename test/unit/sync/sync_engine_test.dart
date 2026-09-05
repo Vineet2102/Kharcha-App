@@ -9,6 +9,7 @@ import 'package:kharcha/core/network/connectivity_service.dart';
 import 'package:kharcha/data/sync/outbox_processor.dart';
 import 'package:kharcha/data/sync/pull_service.dart';
 import 'package:kharcha/data/sync/realtime_listener.dart';
+import 'package:kharcha/data/sync/recurring_posting_engine.dart';
 import 'package:kharcha/data/sync/sync_engine.dart';
 import 'package:kharcha/data/sync/sync_state.dart';
 
@@ -26,6 +27,9 @@ class MockPullService extends Mock implements PullService {}
 
 class MockRealtimeListener extends Mock implements RealtimeListener {}
 
+class MockRecurringPostingEngine extends Mock
+    implements RecurringPostingEngine {}
+
 class MockOutboxDao extends Mock implements OutboxDao {}
 
 void main() {
@@ -35,6 +39,7 @@ void main() {
   late MockOutboxProcessor outboxProcessor;
   late MockPullService pullService;
   late MockRealtimeListener realtimeListener;
+  late MockRecurringPostingEngine recurringPostingEngine;
   late MockOutboxDao outboxDao;
   late List<SyncState> published;
   late SyncEngine engine;
@@ -50,6 +55,8 @@ void main() {
     pullService = MockPullService();
     realtimeListener = MockRealtimeListener();
     when(() => realtimeListener.start(any())).thenReturn(null);
+    recurringPostingEngine = MockRecurringPostingEngine();
+    when(() => recurringPostingEngine.run(any())).thenAnswer((_) async {});
     outboxDao = MockOutboxDao();
     when(() => outboxDao.pendingCount()).thenAnswer((_) async => 0);
     when(() => outboxDao.hasStuckEntries()).thenAnswer((_) async => false);
@@ -61,6 +68,7 @@ void main() {
       outboxProcessor: outboxProcessor,
       pullService: pullService,
       realtimeListener: realtimeListener,
+      recurringPostingEngine: recurringPostingEngine,
       outboxDao: outboxDao,
       publish: published.add,
     );
@@ -93,8 +101,12 @@ void main() {
       await first;
       await second;
 
-      verify(() => outboxProcessor.process()).called(1);
+      // Pushed once before the pull, once more after the recurring posting
+      // engine runs (so a freshly-posted occurrence doesn't wait for the
+      // next cycle) — both within this single cycle.
+      verify(() => outboxProcessor.process()).called(2);
       verify(() => pullService.pullAll(any())).called(1);
+      verify(() => recurringPostingEngine.run(any())).called(1);
     },
   );
 

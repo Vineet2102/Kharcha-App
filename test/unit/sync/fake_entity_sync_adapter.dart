@@ -21,6 +21,12 @@ class FakeEntitySyncAdapter extends EntitySyncAdapter {
 
   Object? errorToThrow;
 
+  /// One-shot errors consumed in FIFO order by successive `pushUpsert`
+  /// calls (before falling back to [errorToThrow], which applies to every
+  /// call) — lets a test script "device A succeeds, device B's conflicting
+  /// push fails" against the same fake.
+  final List<Object?> upsertErrorQueue = [];
+
   @override
   bool get supportsPush => true;
 
@@ -40,7 +46,12 @@ class FakeEntitySyncAdapter extends EntitySyncAdapter {
   @override
   Future<void> pushUpsert(Map<String, dynamic> payload) async {
     callLog.add('$entityKey:upsert:${payload['id']}');
-    if (errorToThrow != null) throw errorToThrow!;
+    if (upsertErrorQueue.isNotEmpty) {
+      final next = upsertErrorQueue.removeAt(0);
+      if (next != null) throw next;
+    } else if (errorToThrow != null) {
+      throw errorToThrow!;
+    }
     upserts.add(payload);
   }
 
