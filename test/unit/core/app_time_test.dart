@@ -94,6 +94,69 @@ void main() {
     });
   });
 
+  group('AppTime.nowIst', () {
+    test('returns the current instant shifted by the IST offset', () {
+      final before = DateTime.now().toUtc().add(AppTime.istOffset);
+      final now = AppTime.nowIst();
+      final after = DateTime.now().toUtc().add(AppTime.istOffset);
+
+      expect(now.isUtc, isTrue);
+      expect(now.isAfter(before.subtract(const Duration(seconds: 1))), isTrue);
+      expect(now.isBefore(after.add(const Duration(seconds: 1))), isTrue);
+    });
+  });
+
+  group('AppTime.isFutureMonth', () {
+    test('the current month is not a future month', () {
+      final currentMonth = AppTime.monthStart(DateTime.now().toUtc());
+      expect(AppTime.isFutureMonth(currentMonth), isFalse);
+    });
+
+    test('a month after the current one is a future month', () {
+      final nextMonth = AppTime.monthAfter(
+        AppTime.monthStart(DateTime.now().toUtc()),
+        1,
+      );
+      expect(AppTime.isFutureMonth(nextMonth), isTrue);
+    });
+
+    test('a month before the current one is not a future month', () {
+      final lastMonth = AppTime.monthAfter(
+        AppTime.monthStart(DateTime.now().toUtc()),
+        -1,
+      );
+      expect(AppTime.isFutureMonth(lastMonth), isFalse);
+    });
+  });
+
+  group('AppTime.daysRemainingInMonth', () {
+    test('a past month has 0 days remaining', () {
+      final lastMonth = AppTime.monthAfter(
+        AppTime.monthStart(DateTime.now().toUtc()),
+        -1,
+      );
+      expect(AppTime.daysRemainingInMonth(lastMonth), 0);
+    });
+
+    test('a future month has its full day count remaining', () {
+      final nextMonth = AppTime.monthAfter(
+        AppTime.monthStart(DateTime.now().toUtc()),
+        1,
+      );
+      expect(
+        AppTime.daysRemainingInMonth(nextMonth),
+        AppTime.daysInMonth(nextMonth),
+      );
+    });
+
+    test('the current month counts today plus the days left', () {
+      final currentMonth = AppTime.monthStart(DateTime.now().toUtc());
+      final today = AppTime.nowIst();
+      final expected = AppTime.daysInMonth(currentMonth) - today.day + 1;
+      expect(AppTime.daysRemainingInMonth(currentMonth), expected);
+    });
+  });
+
   group('AppTime month labels', () {
     test('monthLabel formats the full month name and year', () {
       expect(AppTime.monthLabel(DateTime.utc(2026, 9, 1)), 'September 2026');

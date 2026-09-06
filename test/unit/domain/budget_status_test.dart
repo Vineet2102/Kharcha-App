@@ -100,6 +100,30 @@ void main() {
     });
   });
 
+  group('BudgetStatus Money getters', () {
+    test('spent/remaining/effectiveBudget wrap their *Paise counterparts', () {
+      final now = DateTime.utc(2026, 9, 1);
+      final status = BudgetStatus(
+        budget: Budget(
+          id: 'b1',
+          householdId: 'h1',
+          scope: BudgetScope.household,
+          amountPaise: 100000,
+          periodMonth: now,
+          createdBy: 'u1',
+          createdAt: now,
+          updatedAt: now,
+        ),
+        spentPaise: 40000,
+        rolloverPaise: 5000,
+      );
+
+      expect(status.spent.paise, 40000);
+      expect(status.remaining.paise, 65000);
+      expect(status.effectiveBudget.paise, 105000);
+    });
+  });
+
   group('BudgetStatus.health', () {
     Budget budgetWith({int amountPaise = 100000, int alertThresholdPct = 80}) {
       final now = DateTime.utc(2026, 9, 1);

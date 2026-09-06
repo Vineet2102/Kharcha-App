@@ -62,6 +62,47 @@ void main() {
     test('formats sub-lakh amounts compactly in thousands', () {
       expect(Money.fromRupees(2500).format(compact: true), '₹2.5k');
     });
+
+    test('formats amounts under 1000 compactly with no suffix', () {
+      expect(Money.fromRupees(450).format(compact: true), '₹450');
+    });
+
+    test('formats a negative amount compactly with a leading minus', () {
+      expect(Money.fromRupees(-2500).format(compact: true), '-₹2.5k');
+    });
+
+    test('omits the ₹ symbol when withSymbol is false', () {
+      expect(Money.fromRupees(100).format(withSymbol: false), '100.00');
+    });
+
+    test('omits the ₹ symbol in compact mode too', () {
+      expect(
+        Money.fromRupees(2500).format(withSymbol: false, compact: true),
+        '2.5k',
+      );
+    });
+  });
+
+  group('Money comparisons', () {
+    test('< <= > >= order by paise', () {
+      final small = Money.fromRupees(10);
+      final big = Money.fromRupees(20);
+
+      expect(small < big, isTrue);
+      expect(big > small, isTrue);
+      expect(small <= small, isTrue);
+      expect(big >= big, isTrue);
+      expect(big < small, isFalse);
+    });
+
+    test('isPositive / isNegative', () {
+      expect(Money.fromRupees(5).isPositive, isTrue);
+      expect(Money.fromRupees(5).isNegative, isFalse);
+      expect(Money.fromRupees(-5).isPositive, isFalse);
+      expect(Money.fromRupees(-5).isNegative, isTrue);
+      expect(Money.zero.isPositive, isFalse);
+      expect(Money.zero.isNegative, isFalse);
+    });
   });
 
   group('Money arithmetic', () {
