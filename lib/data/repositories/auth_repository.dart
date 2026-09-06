@@ -58,6 +58,18 @@ class AuthRepository {
       return Result.err(ErrorMapper.map(error));
     }
   }
+
+  /// Change-password from within Settings (spec §11.13, T-14.2). Needs no
+  /// current-password confirmation — Supabase's `updateUser` operates on
+  /// the already-authenticated session, not a fresh credential check.
+  Future<Result<void, Failure>> updatePassword(String newPassword) async {
+    try {
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      return const Result.ok(null);
+    } catch (error) {
+      return Result.err(ErrorMapper.map(error));
+    }
+  }
 }
 
 @Riverpod(keepAlive: true)

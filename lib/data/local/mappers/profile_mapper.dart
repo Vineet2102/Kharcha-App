@@ -21,7 +21,10 @@ extension ProfileRowMapper on Profile {
 }
 
 extension ProfileDomainMapper on domain.Profile {
-  ProfilesCompanion toCompanion({bool dirty = false}) => ProfilesCompanion(
+  ProfilesCompanion toCompanion({
+    bool dirty = false,
+    String? baseUpdatedAt,
+  }) => ProfilesCompanion(
     id: Value(id),
     householdId: Value(householdId),
     displayName: Value(displayName),
@@ -31,6 +34,10 @@ extension ProfileDomainMapper on domain.Profile {
     createdAt: Value(createdAt),
     updatedAt: Value(updatedAt),
     isDirty: Value(dirty),
+    localUpdatedAt: dirty ? Value(DateTime.now().toUtc()) : const Value.absent(),
     syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
   );
 }

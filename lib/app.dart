@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/notifications/notification_service.dart';
 import 'data/remote/supabase_client_provider.dart';
 import 'data/repositories/budget_alert_service.dart';
 import 'data/repositories/notification_scheduler.dart';
+import 'data/repositories/update_check_repository.dart';
 import 'data/sync/sync_engine.dart';
 import 'routing/app_router.dart';
 import 'routing/root_navigator_key.dart';
@@ -53,6 +55,10 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
         .read(notificationSchedulerProvider)
         .runAll(AppConstants.seedHouseholdId);
 
+    // T-14.6: at most once per 24h (the repository's own throttle) — see
+    // `UpdateCheckRepository.checkForUpdates`.
+    ref.read(updateCheckControllerProvider.notifier).check();
+
     // T-13.4: deep-link a tapped notification into its target route. A
     // foreground tap arrives on this stream; a cold-start tap (the
     // notification is what launched the app) is handled once the first
@@ -96,6 +102,36 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     ref
         .read(notificationSchedulerProvider)
         .runAll(AppConstants.seedHouseholdId);
+    ref.read(updateCheckControllerProvider.notifier).check();
+  }
+
+  Future<void> _showBlockedUpdateDialog(Blocked blocked) {
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return Future.value();
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: const Text('Update required'),
+          content: const Text(
+            'This version is too old to sync safely. Please update.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: blocked.release.downloadUrl == null
+                  ? null
+                  : () => launchUrl(
+                      Uri.parse(blocked.release.downloadUrl!),
+                      mode: LaunchMode.externalApplication,
+                    ),
+              child: const Text('Get it'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -106,6 +142,13 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
       if (previous == null && next != null) {
         ref.read(syncEngineProvider).sync();
       }
+    });
+
+    // T-14.6: `min_supported > current build` is the emergency brake — a
+    // non-dismissible dialog, unlike the ordinary UpdateAvailable banner
+    // (rendered on the Dashboard itself, see `update_banner.dart`).
+    ref.listen(updateCheckControllerProvider, (previous, next) {
+      if (next is Blocked) _showBlockedUpdateDialog(next);
     });
 
     final router = ref.watch(appRouterProvider);

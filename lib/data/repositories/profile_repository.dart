@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
@@ -10,17 +12,25 @@ import '../../core/logging/app_logger.dart';
 import '../../domain/models/profile.dart' as domain;
 import '../local/mappers/profile_mapper.dart';
 import '../remote/supabase_client_provider.dart';
+import '../sync/sync_engine.dart';
 
 part 'profile_repository.g.dart';
 
+const _uuid = Uuid();
+
 /// Caches the signed-in member's own `profiles` row locally (spec §11.1,
 /// T-3.5), so the app can resolve "who am I / which household" offline from
-/// the very next launch onward.
+/// the very next launch onward. Also owns the two Phase 14 write paths on
+/// this table (spec §11.13 T-14.2/T-14.3) — every write goes to Drift + the
+/// outbox per the iron rule (§9.1); RLS (`pr_update_self`: self, or admin
+/// editing anyone) is the real enforcement, the UI only hides controls a
+/// caller isn't allowed to use.
 class ProfileRepository {
-  ProfileRepository(this._client, this._db);
+  ProfileRepository(this._client, this._db, this._triggerSync);
 
   final SupabaseClient _client;
   final AppDatabase _db;
+  final void Function() _triggerSync;
 
   Stream<domain.Profile?> watch(String userId) =>
       _db.profileDao.watchById(userId).map((row) => row?.toDomain());
@@ -28,6 +38,46 @@ class ProfileRepository {
   Future<domain.Profile?> cached(String userId) async {
     final row = await _db.profileDao.findById(userId);
     return row?.toDomain();
+  }
+
+  /// Self-edit: display name (spec §11.13 "Profile" section).
+  Future<void> updateDisplayName(String userId, String name) async {
+    final existing = await cached(userId);
+    if (existing == null) return;
+    await _save(existing.copyWith(displayName: name));
+  }
+
+  /// Self-edit: avatar colour (spec §11.13 "Profile" section).
+  Future<void> updateColourHex(String userId, String colourHex) async {
+    final existing = await cached(userId);
+    if (existing == null) return;
+    await _save(existing.copyWith(colourHex: colourHex));
+  }
+
+  /// Admin-only: toggle another (or their own) member's `is_active` (spec
+  /// §11.13 T-14.3). Callable on any household member's id — RLS's
+  /// `pr_update_self` (`id = auth.uid() or is_admin()`) is what actually
+  /// blocks a non-admin from using this on someone else.
+  Future<void> setActive(String userId, bool isActive) async {
+    final existing = await cached(userId);
+    if (existing == null) return;
+    await _save(existing.copyWith(isActive: isActive));
+  }
+
+  Future<void> _save(domain.Profile profile) async {
+    final updated = profile.copyWith(updatedAt: DateTime.now().toUtc());
+    await _db.profileDao.upsert(updated.toCompanion(dirty: true));
+    await _db.outboxDao.enqueue(
+      OutboxEntriesCompanion.insert(
+        id: _uuid.v4(),
+        entity: 'profile',
+        entityId: updated.id,
+        op: 'upsert',
+        payload: jsonEncode(updated.toJson()),
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
+    _triggerSync();
   }
 
   /// Best-effort remote refresh of the cached profile. Failures (offline,
@@ -63,6 +113,7 @@ class ProfileRepository {
 ProfileRepository profileRepository(Ref ref) => ProfileRepository(
   ref.watch(supabaseClientProvider),
   ref.watch(appDatabaseProvider),
+  () => ref.read(syncEngineProvider).sync(),
 );
 
 /// Resolves offline from the Drift cache (T-3.5 acceptance) while kicking

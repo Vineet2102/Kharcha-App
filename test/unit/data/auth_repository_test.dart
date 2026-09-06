@@ -16,6 +16,10 @@ void main() {
   late MockGoTrueClient auth;
   late AuthRepository repository;
 
+  setUpAll(() {
+    registerFallbackValue(UserAttributes());
+  });
+
   setUp(() {
     client = MockSupabaseClient();
     auth = MockGoTrueClient();
@@ -103,6 +107,23 @@ void main() {
       when(() => auth.resetPasswordForEmail(any())).thenAnswer((_) async {});
       final result = await repository.resetPassword('a@b.com');
       expect(result.isOk, isTrue);
+    });
+  });
+
+  group('updatePassword', () {
+    test('returns Ok on success (T-14.2)', () async {
+      when(
+        () => auth.updateUser(any()),
+      ).thenAnswer((_) async => UserResponse.fromJson({'id': 'u1'}));
+      final result = await repository.updatePassword('newSecret123');
+      expect(result.isOk, isTrue);
+      verify(() => auth.updateUser(any())).called(1);
+    });
+
+    test('maps a thrown error through ErrorMapper', () async {
+      when(() => auth.updateUser(any())).thenThrow(const AuthException('boom'));
+      final result = await repository.updatePassword('newSecret123');
+      expect(result.isErr, isTrue);
     });
   });
 

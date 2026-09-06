@@ -18,7 +18,10 @@ extension HouseholdRowMapper on Household {
 }
 
 extension HouseholdDomainMapper on domain.Household {
-  HouseholdsCompanion toCompanion({bool dirty = false}) => HouseholdsCompanion(
+  HouseholdsCompanion toCompanion({
+    bool dirty = false,
+    String? baseUpdatedAt,
+  }) => HouseholdsCompanion(
     id: Value(id),
     name: Value(name),
     currencyCode: Value(currencyCode),
@@ -26,6 +29,10 @@ extension HouseholdDomainMapper on domain.Household {
     createdAt: Value(createdAt),
     updatedAt: Value(updatedAt),
     isDirty: Value(dirty),
+    localUpdatedAt: dirty ? Value(DateTime.now().toUtc()) : const Value.absent(),
     syncStatus: Value(dirty ? 'pending' : 'synced'),
+    baseUpdatedAt: baseUpdatedAt == null
+        ? const Value.absent()
+        : Value(baseUpdatedAt),
   );
 }

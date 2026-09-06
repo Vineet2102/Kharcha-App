@@ -86,6 +86,18 @@ void main() {
           );
         ''');
       }
+      // `households`/`profiles` didn't gain `base_updated_at` until Phase
+      // 14's v4 -> v5 step (see `migration_v4_to_v5_test.dart`), so at v3
+      // they're still in their original shape, unlike the 6 tables above.
+      for (final table in ['households', 'profiles']) {
+        raw.execute('''
+          CREATE TABLE $table (
+            id TEXT NOT NULL PRIMARY KEY,
+            updated_at INTEGER NOT NULL,
+            is_dirty INTEGER NOT NULL DEFAULT 0
+          );
+        ''');
+      }
       raw.execute('''
         CREATE TABLE outbox_entries (
           id TEXT NOT NULL,

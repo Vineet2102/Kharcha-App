@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -149,6 +149,22 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(budgets, budgets.baseUpdatedAt);
         await m.addColumn(recurringRules, recurringRules.baseUpdatedAt);
         await m.addColumn(attachments, attachments.baseUpdatedAt);
+      }
+      // v4 -> v5 (Phase 14, T-14.2/T-14.3): `household`/`profile` gain push
+      // support (editing the household name, a member's own display
+      // name/colour, and an admin toggling another member's `is_active`),
+      // so they need the same compare-and-swap base every other
+      // push-capable table already has. Same backfill rule as v2->v3: a
+      // clean row's current `updatedAt` already equals the server's.
+      if (from < 5) {
+        await m.addColumn(households, households.baseUpdatedAt);
+        await m.addColumn(profiles, profiles.baseUpdatedAt);
+        await customStatement(
+          'UPDATE households SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
+        await customStatement(
+          'UPDATE profiles SET base_updated_at = updated_at WHERE is_dirty = 0',
+        );
       }
     },
   );

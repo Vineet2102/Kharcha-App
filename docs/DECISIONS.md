@@ -1797,3 +1797,126 @@ light-only `Color`) stayed legible against the dark surface.
   entry already documented for this environment. Worked around by asking
   the user to tap the stuck control directly rather than continuing to
   fight it automatically.
+
+## 2026-09-06 — Phase 14 (Settings, admin, diagnostics)
+
+- **`household`/`profile` needed push support for the first time.** Both
+  entities have been pull-only since Phase 4 (`EntitySyncAdapter.
+  supportsPush => false`) — nothing in the app ever wrote to them. T-14.2
+  (a member editing their own display name/colour) and T-14.3 (an admin
+  toggling another member's `is_active`) are the first writes either table
+  has ever needed, so this phase's real work was giving both the same
+  compare-and-swap push machinery every other table already has (schema
+  v4 → v5, `base_updated_at`, `_pushUpsertWithCas`), rather than the
+  screens themselves, which are thin. `households` gets a `TableRemote-
+  DataSource(client, 'households')` for push (its own `id` IS the
+  household id, so the generic table client's `id`-filtered `upsertIf-
+  BaseMatches`/`fetchById` work fine) while keeping its existing dedicated
+  `HouseholdRemoteDataSource` for pull (`households` has no `household_id`
+  column, so the generic `selectSince`'s `.eq('household_id', ...)`
+  filter can't be reused there). Both adapters' `pullApply` also gained
+  the D12 dirty-local-wins guard every other entity's pull already had —
+  needed now that a routine background pull (e.g. another device's
+  profile edit) can actually stomp a locally-dirty row, which was
+  impossible before either table had a write path.
+- Neither table gets a delete path. `households` and `profiles` have no
+  `deleted_at` column and no delete RLS policy — a household is never
+  deleted and a member is deactivated (`is_active = false`), never
+  removed. `pushSoftDelete` on both adapters keeps throwing
+  `UnsupportedError`; no repository code enqueues a `delete` op for
+  either.
+- `migration_v2_to_v3_test.dart`/`migration_v3_to_v4_test.dart`'s hand-
+  built fixture databases each construct only the tables their own
+  migration step touches, opened via the real `AppDatabase()` (not
+  `.forTesting()`) so the actual `onUpgrade` chain runs. Bumping
+  `schemaVersion` to 5 meant `households`/`profiles` — previously absent
+  from both fixtures — are now touched by every upgrade chain that passes
+  through v4 → v5, so both fixtures needed those two tables added (with,
+  or without, a `base_updated_at` column already present, matching
+  whichever real schema version each fixture represents) or the v5 step's
+  `ALTER TABLE households ...` failed with `no such table: households`.
+  Recorded here since it'll recur for any future schema bump — a fixture
+  representing "a real device's old database" is only realistic if it
+  contains every table the real schema had at that version, not just the
+  ones the test's own assertions care about.
+- Settings' "About" section can't show a literal Supabase project
+  **region** (spec §11.13) — `AppConfig` only carries `SUPABASE_URL`, not
+  a region string, and there's no reason to plumb one through just for a
+  label. Shows the parsed URL host instead (`jqorwgiowfxxgjvayznj.
+  supabase.co`), which is at least as diagnostically useful for "which
+  backend am I talking to" and needs no new config surface.
+- The in-app update banner's iOS path (spec §11.14: "the link points to
+  instructions" instead of a raw APK) wasn't built out — there's no iOS
+  build to update in the first place (blocked since Gate 0's codesign/
+  provenance issue, never revisited). Both platforms currently share the
+  same `download_url` → `url_launcher` behaviour; this needs a real
+  branch once/if iOS ships.
+- **No live verification this session** — the sandbox has neither `adb`
+  nor a running emulator (`which adb` and `flutter devices` both came back
+  empty), unlike every prior phase's session. Gate 14 is held at
+  **partial** purely on that basis: `flutter analyze --fatal-infos` and
+  `flutter test` (247 green) are the only verification that ran. Nothing
+  here failed a live check — there simply wasn't a device to check it on.
+  The concrete list of what still needs a live pass is in `PROGRESS.md`'s
+  Gate 14 row.
+
+## 2026-09-06 — Phase 14 widget tests (T-14.7)
+
+Asked to add widget tests for the 6 screens this phase built. First attempt
+looked hung — `flutter test test/widget/` sat for 7+ minutes with zero
+output and had to be killed twice. Both apparent "hangs" and every
+subsequent test failure traced to real bugs, none in app code:
+
+- **Attempt 1 wasn't a hang at all**: `widget_test_helpers.dart` (a new
+  shared file for the 6 test files' mocktail boilerplate) called `SizedBox`
+  in a teardown helper without importing `package:flutter/widgets.dart`.
+  The compile error was real and immediate, but the *persistent* resident
+  compiler kept retrying across every test file in the run for minutes
+  before surfacing it — zero CPU time was actually spent (confirmed via
+  `ps`), which is what gave the false impression of a stuck process. Fixed
+  by adding the import.
+- **Attempt 2 was a genuine hang**, isolated to one test
+  (`diagnostics_screen_test.dart`'s Discard case) via `ps`'s CPU-time
+  column reading ~1s across 90s+ of wall clock — a real deadlock, not slow
+  compilation. Cause: `await db.outboxDao.watchFailed().first` on a fresh
+  Drift `.watch()` stream, awaited directly rather than through
+  `tester.pump()`. `testWidgets` runs the whole test body inside a
+  `FakeAsync` zone, where real `Timer`s (including Drift's own
+  stream-invalidation/debounce timers — the same mechanism
+  `test/widget_test.dart`'s existing "Timer still pending" comment already
+  documents for the *close* path) only fire when something explicitly
+  advances the fake clock (`tester.pump()`/`pumpAndSettle()`). A bare
+  `await` outside of a pump call waits on a Timer tick that will never
+  come, so it blocks forever. Fixed by replacing it with a one-shot
+  `Future`-returning query (`OutboxDao.dueEntries`, no `.watch()`
+  involved) — the general rule going forward: **never `await
+  someDaoMethod().first` (or any direct `.watch()` stream) inside a
+  `testWidgets` body; always go through a one-shot query, or drive the
+  stream via `tester.pump()`.**
+- Once compiling and no longer hanging, three more test-authoring bugs
+  (not app bugs) surfaced from actually running the seeded data through
+  the real providers:
+  - `householdProvider`/`householdProfilesProvider` are keyed to the
+    fixed `AppConstants.seedHouseholdId` (a literal UUID constant), not an
+    arbitrary id — seeding a household/profiles under a throwaway test id
+    like `'h1'` leaves those providers watching a household that doesn't
+    exist, so nothing renders. `widget_test_helpers.dart`'s
+    `seedHousehold`/`seedProfile` now default to
+    `AppConstants.seedHouseholdId`.
+  - `SettingsScreen`'s household-name `ListTile` renders its subtitle
+    ("Household name") as a static label regardless of role — only
+    `onTap` is admin-gated. A test asserting that text is *absent* for a
+    member was simply wrong; the tile is still there, just inert. Fixed to
+    assert no `AlertDialog` opened instead. Symmetrically, tapping it as
+    admin puts the *same* literal text on screen twice at once (the static
+    subtitle behind the now-open dialog, whose title repeats it) — fixed
+    by scoping the finder to `find.descendant(of: find.byType(AlertDialog),
+    ...)`.
+  - Settings' own list (~20 tiles across 7 sections) is taller than the
+    default `flutter test` viewport. A plain `ListView(children: [...])`
+    still lays out as a sliver list under the hood, which only builds
+    children near the viewport/cache-extent — so `find.text` silently
+    finds nothing for anything past roughly the "Manage" section, with no
+    error, just an empty finder. Fixed by growing
+    `tester.view.physicalSize` before pumping (reset via `addTearDown`)
+    rather than teaching every assertion to scroll first.

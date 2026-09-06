@@ -25,16 +25,18 @@ class _FakePathProvider extends PathProviderPlatform
 /// version) to prove existing family data survives the upgrade instead of
 /// asserting it in the abstract.
 ///
-/// `AppDatabase()`'s `schemaVersion` has since moved to 4 (the Gate 10
-/// timestamp-precision fix, also 2026-09-05 — see
-/// `migration_v3_to_v4_test.dart`), so opening this hand-built v2 file now
-/// exercises the full v2 -> v3 -> v4 chain in one open, the same as a real
-/// device that hasn't synced in a while. The v4 step unconditionally resets
-/// `base_updated_at` to null for every row (see that migration's own
+/// `AppDatabase()`'s `schemaVersion` has since moved to 5 (Gate 10's
+/// timestamp-precision fix to 4, then Phase 14's `household`/`profile`
+/// push support to 5 — see `migration_v3_to_v4_test.dart` and
+/// `migration_v4_to_v5_test.dart`), so opening this hand-built v2 file now
+/// exercises the full v2 -> v3 -> v4 -> v5 chain in one open, the same as a
+/// real device that hasn't synced in a while. The v4 step unconditionally
+/// resets `base_updated_at` to null for every row (see that migration's own
 /// comment), so this test's assertions reflect the *end* state of the full
 /// chain rather than the v3-only backfill in isolation — the v3-only
 /// backfill behaviour itself is covered directly by
-/// `migration_v3_to_v4_test.dart`'s "before" fixture.
+/// `migration_v3_to_v4_test.dart`'s "before" fixture, and the v5 step's own
+/// behaviour by `migration_v4_to_v5_test.dart`.
 void main() {
   late Directory tempDir;
   late String dbPath;
@@ -75,9 +77,12 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
-      // The other 6 push-capable tables only need enough of the v2 shape
-      // for the migration's ALTER/UPDATE statements to succeed — this test
+      // The other push-capable tables only need enough of the v2 shape for
+      // the migration's ALTER/UPDATE statements to succeed — this test
       // focuses its data-preservation assertions on categories.
+      // `households`/`profiles` (Phase 14's v4 -> v5 step) join this list
+      // too, since every version bump in this chain runs against the same
+      // hand-built file.
       for (final table in [
         'payment_methods',
         'expenses',
@@ -85,6 +90,8 @@ void main() {
         'budgets',
         'recurring_rules',
         'attachments',
+        'households',
+        'profiles',
       ]) {
         raw.execute('''
           CREATE TABLE $table (

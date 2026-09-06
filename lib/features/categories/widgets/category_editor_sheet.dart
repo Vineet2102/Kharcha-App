@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
+import '../../../core/widgets/colour_swatch_picker.dart';
 import '../../../data/repositories/category_repository.dart';
 import '../../../domain/models/category.dart' as domain;
 import '../../../domain/models/enums.dart';
@@ -148,17 +149,9 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
             const SizedBox(height: 16),
             Text('Colour', style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final hex in categoryColourPalette)
-                  _ColourChoice(
-                    hex: hex,
-                    selected: hex == _colourHex,
-                    onTap: () => setState(() => _colourHex = hex),
-                  ),
-              ],
+            ColourSwatchPicker(
+              selectedHex: _colourHex,
+              onSelected: (hex) => setState(() => _colourHex = hex),
             ),
             const SizedBox(height: 24),
             FilledButton(
@@ -201,44 +194,6 @@ class _IconChoice extends StatelessWidget {
         backgroundColor: selected ? colour : colour.withValues(alpha: 0.15),
         foregroundColor: selected ? Colors.white : colour,
         child: Icon(icon),
-      ),
-    );
-  }
-}
-
-class _ColourChoice extends StatelessWidget {
-  const _ColourChoice({
-    required this.hex,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String hex;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colour = colourFromHex(hex);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: colour,
-          shape: BoxShape.circle,
-          border: selected
-              ? Border.all(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  width: 2,
-                )
-              : null,
-        ),
-        child: selected
-            ? const Icon(Icons.check, color: Colors.white, size: 18)
-            : null,
       ),
     );
   }

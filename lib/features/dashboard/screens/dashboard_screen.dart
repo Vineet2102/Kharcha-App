@@ -26,10 +26,13 @@ import '../../expenses/controllers/expense_list_preset_filter_controller.dart';
 import '../controllers/selected_month_controller.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/section_card.dart';
+import '../widgets/update_banner.dart';
 
 /// Household + per-member monthly totals (spec §11.4, T-6.1..T-6.5, T-8.4,
 /// T-9.5). Ships cards 1-6. Card 7 (the sync/offline banner) is already
-/// rendered above every tab by [AppShell].
+/// rendered above every tab by [AppShell]. The in-app update banner (spec
+/// §11.14, T-14.6) sits above every card, per that spec section's own
+/// wording ("a dismissible banner on the Dashboard").
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -44,6 +47,7 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const UpdateBanner(),
             _HouseholdSummaryCard(monthStart: month),
             const SizedBox(height: 12),
             _BudgetProgressCard(monthStart: month),

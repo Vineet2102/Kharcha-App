@@ -114,6 +114,37 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
     );
   }
 
+  /// Every pending entry, newest-attempt-first — the Diagnostics screen's
+  /// "Sync queue" section (spec §11.13 T-14.5).
+  Stream<List<OutboxEntry>> watchPending() {
+    return (select(outboxEntries)
+          ..where((t) => t.status.equals('pending'))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .watch();
+  }
+
+  /// Every permanently-failed entry — the Diagnostics screen's "Failed
+  /// items" section (spec §11.13 T-14.5), each retryable or discardable.
+  Stream<List<OutboxEntry>> watchFailed() {
+    return (select(outboxEntries)
+          ..where((t) => t.status.equals('failed'))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .watch();
+  }
+
+  /// Un-parks a `'failed'` entry so the next sync cycle picks it up again
+  /// (spec §11.13 T-14.5: "a deliberately failed item is visible and
+  /// retryable").
+  Future<void> retry(String id) =>
+      (update(outboxEntries)..where((t) => t.id.equals(id))).write(
+        const OutboxEntriesCompanion(
+          status: Value('pending'),
+          attempts: Value(0),
+          nextAttemptAt: Value(null),
+          lastError: Value(null),
+        ),
+      );
+
   Future<int> remove(String id) =>
       (delete(outboxEntries)..where((t) => t.id.equals(id))).go();
 
