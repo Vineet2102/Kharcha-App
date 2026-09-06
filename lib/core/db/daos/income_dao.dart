@@ -21,6 +21,37 @@ class IncomeDao extends DatabaseAccessor<AppDatabase> with _$IncomeDaoMixin {
   Future<Income?> findById(String id) =>
       (select(incomes)..where((t) => t.id.equals(id))).getSingleOrNull();
 
+  /// Every row matching the given scope, unpaginated — the Export screen
+  /// (spec §11.11, T-12.1). Deliberately plain named params rather than a
+  /// dedicated filter model: income has no payment-method/amount-range/
+  /// search dimensions worth generalising for, unlike `ExpenseFilter`.
+  Future<List<Income>> getFiltered({
+    required String householdId,
+    DateTime? startDate,
+    DateTime? endDate,
+    List<String> memberIds = const [],
+    List<String> categoryIds = const [],
+  }) {
+    return (select(incomes)
+          ..where((t) {
+            Expression<bool> cond =
+                t.householdId.equals(householdId) & t.deletedAt.isNull();
+            if (startDate != null) {
+              cond = cond & t.receivedOn.isBiggerOrEqualValue(startDate);
+            }
+            if (endDate != null) {
+              cond = cond & t.receivedOn.isSmallerOrEqualValue(endDate);
+            }
+            if (memberIds.isNotEmpty) cond = cond & t.userId.isIn(memberIds);
+            if (categoryIds.isNotEmpty) {
+              cond = cond & t.categoryId.isIn(categoryIds);
+            }
+            return cond;
+          })
+          ..orderBy([(t) => OrderingTerm.desc(t.receivedOn)]))
+        .get();
+  }
+
   /// The already-posted income for one recurring occurrence, if any — see
   /// `ExpenseDao.findByOccurrence`.
   Future<Income?> findByOccurrence(

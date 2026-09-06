@@ -1593,3 +1593,207 @@ since a live theme-only broadcast wasn't picked up without one): every
 card's background, text, and every chart's line/bar/slice colours (all
 sourced from `Theme.of(context).colorScheme`, never a hardcoded
 light-only `Color`) stayed legible against the dark surface.
+
+## 2026-09-06 — Phase 12 (Export)
+
+### `pdf`'s base14 fonts have no ₹ glyph — Noto Sans bundled as an asset (T-12.2)
+- First unit-test run of `buildReportPdf` printed, to the console, "Unable
+  to find a font to draw '₹' (U+20b9)" against `pw.Font.helvetica()` —
+  confirmed this is a real, load-bearing gap, not a test artifact: the
+  `pdf` package's base14 fonts (Helvetica/Courier/Times, the PDF spec's
+  built-in set) only cover WinAnsi/Latin-1, which doesn't include the
+  Rupee sign. Left unfixed, every ₹ in the PDF export would either render
+  as nothing or trip the same warning in production.
+- Fixed by downloading and bundling **Noto Sans Regular + Bold**
+  (OFL-licensed, `assets/fonts/`, ~390 KB each) rather than reaching for
+  `printing`'s `PdfGoogleFonts` helper (which lazily fetches fonts from
+  Google's CDN at runtime) — bundling keeps PDF generation fully offline,
+  consistent with this app's offline-first design throughout, and avoids
+  a first-use network dependency for something as basic as rendering a
+  report. Glyph coverage (U+20B9 present in both weights) was verified
+  with `fontTools` before committing the files, rather than assuming it.
+  Registered under `flutter: assets:` in `pubspec.yaml`, **not** `fonts:` —
+  they're loaded as raw bytes for `pw.Font.ttf(...)` (a `pdf`-package
+  concept), never used as a Flutter `TextStyle` font family.
+- `buildReportPdf` (`data/export/pdf_report_builder.dart`) takes the two
+  `pw.Font`s as parameters rather than loading them itself via
+  `rootBundle`, so the function stays plain-Dart-testable; only
+  `ExportRepository._loadReportFonts()` (the real call site) touches
+  `rootBundle`. Live-verified the real NotoSans pair renders ₹ correctly
+  throughout the report (see Gate 12 in PROGRESS.md).
+
+### CSV `amount_inr` is a plain decimal, never `Money.format()`'s Indian grouping (T-12.1)
+- Spec §11.11's CSV header example shows `amount_inr` as `450.00` — a bare
+  decimal. `Money.format()` (built for on-screen display, T-2.2) would
+  instead render a four-figure amount as `1,23,456.00`, and a comma inside
+  a numeric CSV cell forces the field to be quoted, which stops a
+  spreadsheet from summing the column directly with `SUM()` — exactly the
+  thing a CSV export exists to make easy. `csv_export_builder.dart` formats
+  `amount_inr` with a private `_amountStr` (`(paise / 100).toStringAsFixed(2)`)
+  instead, deliberately bypassing `Money` for this one column.
+
+### `csv` package v8's API replaced `ListToCsvConverter` — and gained built-in BOM support
+- The pinned `csv: ^8.0.0` (added back in Phase 0, unused until now) turned
+  out to have a fully rewritten API from the `ListToCsvConverter`/
+  `CsvToListConverter` shape most still-circulating examples (and the
+  spec's own phrasing) assume — `flutter analyze` caught this immediately
+  (`creation_with_non_type`). The new `CsvEncoder(addBom: true).convert(rows)`
+  actually simplifies spec §11.11's "UTF-8 with a BOM" requirement: the BOM
+  is the encoder's own option, not something to prepend by hand as 3 raw
+  bytes after the fact.
+
+### Income gets its own CSV header shape, not a column subset of the expense one
+- Spec §11.11 only shows the expense header verbatim and says "a second CSV
+  for income when income is included" without specifying its columns.
+  `buildIncomeCsv`'s header (`date,member,amount_inr,category,source,note,id`)
+  drops `time`/`payment_method`/`merchant`/`has_receipt` entirely rather
+  than leaving them blank for every row — the `incomes` table has none of
+  those columns (§11.6, same reasoning as `IncomeRepository`'s Phase 7
+  decision to not carry over expense-only features), so an always-empty
+  column would just be noise in the file.
+
+### PDF category/member breakdown tables are always household-wide for the period, independent of the screen's member/category filter
+- The Export screen's member/category `FilterChip`s scope the CSV rows and
+  the PDF's optional transaction-list appendix, but **not** the PDF's
+  "Spend by category"/"Spend by member" tables — those always summarise
+  the full household for the selected date range, matching spec §11.11's
+  literal description of the PDF as a report, not a filtered view. Simpler
+  than teaching `ReportDao`'s grouped-total queries a second filter
+  dimension for a case the spec doesn't ask for.
+
+### Full JSON backup includes soft-deleted rows — the one deliberate exception to this app's "never show deleted data" rule
+- Every other read in this app (every DAO's `watchAll`, every repository
+  stream) filters `deleted_at IS NULL`. `ExportRepository.exportFullBackupJson()`
+  is the one exception: it selects straight off each Drift table with no
+  `where` clause at all, on the reasoning that a disaster-recovery
+  snapshot ("the disaster-recovery escape hatch", spec §11.11) should
+  capture full history, not the live view — a restore that silently
+  dropped every prior edit/delete would be a worse backup, not a cleaner
+  one.
+
+### Live verification (Gate 12)
+- See PROGRESS.md for the full live-verification trace (CSV BOM/header/
+  totals reconciling with the Dashboard, PDF rendering with a real ₹
+  glyph via `qlmanage`, full backup's row counts matching the real
+  household). One process note: the Export screen's own button
+  coordinates were computed correctly this time by remembering Gate 7's
+  screenshot-scaling lesson (the tool's screenshots are returned
+  downscaled — multiply by the ratio to the device's real resolution
+  before issuing `adb shell input tap`) after one early tap silently
+  missed the button for the same reason as that gate's first attempt.
+
+## 2026-09-06 — Phase 13 (Notifications)
+
+### Only the daily reminder is a true OS-scheduled alarm — everything else is evaluated live
+- Spec §11.12's table nominally "schedules" all six notification types,
+  but three of them (monthly summary, recurring due, sync stuck) need
+  content that literally cannot exist at any earlier scheduling time —
+  "August: family spent ₹84,320" needs August to have actually finished;
+  "3 recurring items are waiting" needs live pending-count data; "outbox
+  stuck" needs the outbox's current age. `flutter_local_notifications`'
+  `zonedSchedule` bakes a notification's title/body into the OS alarm at
+  *schedule* time and fires it later with **zero app code running** (that's
+  precisely how it survives the app being fully closed) — there is no hook
+  to compute fresh content at the moment it fires, and this app has no
+  background isolate to provide one (§11.12: "the app cannot run in the
+  background").
+- Resolved by treating those three as event-driven, exactly like
+  `BudgetAlertService` (Phase 8) already does: evaluated at every app
+  start/resume, and shown immediately (`NotificationService.show`, not
+  `scheduleAt`) if their condition is currently true, deduplicated in
+  `shared_preferences` (`notif_monthly_summary_notified_<yyyyMM>`,
+  `notif_recurring_due_notified_<yyyyMMdd>`,
+  `notif_sync_stuck_last_notified_ms`) so a later resume the same day/month
+  doesn't re-fire the same one. Only the **daily reminder** is a real
+  `zonedSchedule` alarm, because it's the one type whose fire time is
+  genuinely fixed in advance (a wall-clock time-of-day) — see the next
+  entry for how its "skip if already logged" condition still works
+  correctly despite the alarm's content being baked in ahead of time.
+
+### Daily reminder: single-shot re-scheduling, not a repeating alarm with `matchDateTimeComponents`
+- The obvious API for "fires daily at HH:mm" is `zonedSchedule` with
+  `matchDateTimeComponents: DateTimeComponents.time` (true OS-level daily
+  repeat). Not used here, because the "skip if the user already logged ≥ 1
+  expense today" condition (spec §11.12) can only be evaluated once, at
+  schedule time — a true repeating alarm can't re-evaluate anything each
+  day, since (again) no app code runs when it fires.
+- Instead, `NotificationScheduler._scheduleDailyReminder` cancels and
+  re-arms a **single one-shot** alarm every time it runs (every app start/
+  resume, per T-13.2's own requirement — "must be re-scheduled on every
+  app start"): `nextDailyReminderFireIst` (pure, `core/notifications/
+  daily_reminder_schedule.dart`) decides whether that next occurrence is
+  today (nothing logged yet, time hasn't passed) or tomorrow (already
+  logged, or today's time already passed). This is not just a best-effort
+  approximation — logging an expense is only possible with the app in the
+  foreground, and that foreground moment always re-triggers this same
+  re-evaluation, so the redundant alarm for "today" is reliably cancelled
+  the moment it becomes unnecessary, before it would have fired.
+
+### `NotificationService.show()` now requires an explicit channel per call site
+- Before Phase 13, `show()` had `'budget_alerts'` hardcoded as the only
+  Android notification channel, since `BudgetAlertService` was its only
+  caller. Phase 13 adds three more `show()` call sites (monthly summary,
+  recurring due, sync stuck) that are not budget alerts — hardcoding them
+  onto the same channel would mislabel them in the system notification
+  settings and let disabling "Budget alerts" silently kill unrelated
+  notification types. `show()`'s signature now requires `channelId`/
+  `channelName`/`channelDescription` explicitly; `BudgetAlertService`'s one
+  call site was updated to pass its own values rather than relying on a
+  default.
+
+### `rootNavigatorKey` pulled out of `app_router.dart` into its own file
+- Deep-linking a notification tap (T-13.4) needs a `BuildContext` from
+  outside the widget tree, which only the root `Navigator`'s `GlobalKey`
+  can provide — but that key previously lived as a private top-level
+  variable inside `app_router.dart`, which imports every feature screen in
+  the app. `core/notifications/notification_service.dart` must not import
+  routing/features (layering), so the key moved to its own leaf file,
+  `routing/root_navigator_key.dart` (no screen imports), which both
+  `app_router.dart` and `app.dart`'s deep-link handler import directly.
+  `app.dart` (not `NotificationService`) owns the actual
+  `GoRouter.of(context).push(...)` call, keeping `NotificationService`
+  payload-agnostic — a payload is just an opaque route path string.
+
+### Live verification (Gate 13)
+- Confirmed via `adb shell dumpsys alarm` that changing the reminder time
+  in the new Notifications screen re-registers a real `RTC_WAKEUP` alarm
+  for `ScheduledNotificationReceiver` at exactly the computed instant every
+  time, including rolling correctly to "tomorrow" once picked a time that
+  had already passed that day — matching `nextDailyReminderFireIst`'s
+  branch for that exact case, and confirmed via the alarm history that each
+  earlier alarm is cleanly `alarm_cancelled` before the new one is set (no
+  stacking). One accidental but useful data point: a stray tap during
+  manual testing committed the reminder time to 10:00 AM while the device
+  clock read 11:04 AM — the very next `runAll()` correctly computed
+  "tomorrow at 10:00 AM" (today's window had already passed), which is
+  exactly the "already logged/already passed" fallback branch, live and
+  unprompted.
+- Budget-alert deep-linking was verified fully end-to-end: created a real
+  ₹55 household budget against the household's actual ₹300 month-to-date
+  spend, triggered `BudgetAlertService.evaluate()` via a background/
+  foreground resume cycle, confirmed the real notification in the shade
+  ("Budget alert — Household budget exceeded by ₹245.00", exact spec
+  copy), and tapping it opened that exact budget's edit screen — T-13.4's
+  literal acceptance line. Test budget deleted afterward.
+- The daily reminder's actual alarm *firing* could not be confirmed this
+  session: `dumpsys alarm` showed it correctly pending at the right instant,
+  then later gone from the pending list with no corresponding log line or
+  posted notification, evaluated well past its `inexactAllowWhileIdle`
+  window (`maxWhenElapsed`). This looks like the emulator's own alarm-
+  dispatch/App-Standby-Bucket throttling (confirmed the app's own bucket
+  was already `active`, the best case, and device idle state was
+  `ACTIVE` too — ruling out the two most common causes — without finding
+  the actual blocker) rather than an app-side defect, but wasn't fully
+  root-caused. Gate 13 is held at **partial** on this basis — matching
+  Gate 0/Gate 4's precedent of recording an honest, unresolved gap rather
+  than a false pass — pending either a patient longer re-run or, per the
+  spec's own acceptance line, an actual physical Android device, which was
+  never available in this sandboxed session.
+- Also worth recording: automated `adb shell input tap` intermittently
+  stopped reaching this emulator mid-session (a system `TimePickerDialog`'s
+  Cancel/OK buttons and its on-screen numeric keypad silently ate several
+  taps in a row, while `adb shell input keyevent` commands kept working
+  throughout) — the same category of flakiness Phase 3's DECISIONS.md
+  entry already documented for this environment. Worked around by asking
+  the user to tap the stuck control directly rather than continuing to
+  fight it automatically.

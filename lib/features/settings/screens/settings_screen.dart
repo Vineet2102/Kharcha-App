@@ -75,6 +75,16 @@ class SettingsScreen extends ConsumerWidget {
             title: const Text('Recurring'),
             onTap: () => context.push(AppRoutes.recurring),
           ),
+          ListTile(
+            leading: const Icon(Icons.ios_share),
+            title: const Text('Export'),
+            onTap: () => context.push(AppRoutes.export),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Notifications'),
+            onTap: () => context.push(AppRoutes.notificationSettings),
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),

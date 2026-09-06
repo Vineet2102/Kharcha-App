@@ -71,6 +71,22 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
         .watchSingle();
   }
 
+  /// The oldest pending entry's `created_at`, or null if the outbox is
+  /// empty — backs the "sync stuck" notification (spec §11.12: "outbox has
+  /// entries older than 24h"). Deliberately not filtered by
+  /// `next_attempt_at` like [dueEntries] — an entry waiting out its own
+  /// backoff timer is just as "stuck" from the user's perspective as one
+  /// that's immediately retryable.
+  Future<DateTime?> oldestPendingCreatedAt() async {
+    final row =
+        await (select(outboxEntries)
+              ..where((t) => t.status.equals('pending'))
+              ..orderBy([(t) => OrderingTerm.asc(t.createdAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    return row?.createdAt;
+  }
+
   Future<void> recordAttempt(
     String id, {
     required int attempts,

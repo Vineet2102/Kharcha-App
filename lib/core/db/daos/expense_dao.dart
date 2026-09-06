@@ -40,6 +40,22 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
         .watch();
   }
 
+  /// Every row matching [filter], unpaginated — the Export screen (spec
+  /// §11.11, T-12.1) needs every matching expense, not a bounded page, and
+  /// runs once on demand rather than staying subscribed.
+  Future<List<Expense>> getFiltered({
+    required String householdId,
+    required ExpenseFilter filter,
+  }) {
+    return (select(expenses)
+          ..where((t) => _filterExpression(t, householdId, filter))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.spentOn),
+            (t) => OrderingTerm.desc(t.spentAt),
+          ]))
+        .get();
+  }
+
   /// Sum of `amount_paise` for every row matching [filter] (not just the
   /// loaded page) — the Expense List header's "filtered total" (spec §11.3).
   Stream<int> watchFilteredTotal({
@@ -205,6 +221,21 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
       if (result.length == limit) break;
     }
     return result;
+  }
+
+  /// Whether the household logged at least one (non-deleted) expense on
+  /// [calendarDate] — backs the daily-logging-reminder's "skip if the user
+  /// already logged ≥ 1 expense today" rule (spec §11.12, T-13.2).
+  Future<bool> hasAnyOn(String householdId, DateTime calendarDate) async {
+    final query = selectOnly(expenses)
+      ..addColumns([expenses.id.count()])
+      ..where(
+        expenses.householdId.equals(householdId) &
+            expenses.deletedAt.isNull() &
+            expenses.spentOn.equals(calendarDate),
+      );
+    final row = await query.getSingle();
+    return (row.read(expenses.id.count()) ?? 0) > 0;
   }
 
   Future<Expense?> findById(String id) =>

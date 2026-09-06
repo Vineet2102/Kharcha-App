@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -18,6 +17,7 @@ import '../features/payment_methods/screens/payment_method_list_screen.dart';
 import '../features/receipts/screens/receipt_viewer_screen.dart';
 import '../features/recurring/screens/recurring_detail_screen.dart';
 import '../features/recurring/screens/recurring_list_screen.dart';
+import '../features/notifications/screens/notification_settings_screen.dart';
 import '../features/settings/screens/diagnostics_screen.dart';
 import '../features/settings/screens/members_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
@@ -25,11 +25,10 @@ import '../features/shell/app_shell.dart';
 import '../data/remote/supabase_client_provider.dart';
 import '../domain/models/expense.dart' as domain;
 import 'go_router_refresh_stream.dart';
+import 'root_navigator_key.dart';
 import 'routes.dart';
 
 part 'app_router.g.dart';
-
-final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 /// The route map from spec §10.1, plus the auth redirect (T-3.4): a
 /// signed-out member always lands on `/login`; a signed-in member is bounced
@@ -42,7 +41,7 @@ GoRouter appRouter(Ref ref) {
   ref.onDispose(refreshStream.dispose);
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     refreshListenable: refreshStream,
     redirect: (context, state) {
@@ -103,96 +102,101 @@ GoRouter appRouter(Ref ref) {
       ),
       GoRoute(
         path: AppRoutes.expenseNew,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             ExpenseDetailScreen(duplicateFrom: state.extra as domain.Expense?),
       ),
       GoRoute(
         path: AppRoutes.expenseDetail,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             ExpenseDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.income,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const IncomeListScreen(),
       ),
       GoRoute(
         path: AppRoutes.incomeNew,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const IncomeDetailScreen(),
       ),
       GoRoute(
         path: AppRoutes.incomeDetail,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             IncomeDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.budgets,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const BudgetListScreen(),
       ),
       GoRoute(
         path: AppRoutes.budgetNew,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             BudgetDetailScreen(initialMonth: state.extra as DateTime?),
       ),
       GoRoute(
         path: AppRoutes.budgetDetail,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             BudgetDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.recurring,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const RecurringListScreen(),
       ),
       GoRoute(
         path: AppRoutes.recurringNew,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const RecurringDetailScreen(),
       ),
       GoRoute(
         path: AppRoutes.recurringDetail,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
             RecurringDetailScreen(id: state.pathParameters['id']),
       ),
       GoRoute(
         path: AppRoutes.categories,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const CategoryListScreen(),
       ),
       GoRoute(
         path: AppRoutes.paymentMethods,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const PaymentMethodListScreen(),
       ),
       GoRoute(
         path: AppRoutes.members,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const MembersScreen(),
       ),
       GoRoute(
         path: AppRoutes.export,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const ExportScreen(),
       ),
       GoRoute(
         path: AppRoutes.receiptViewer,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => ReceiptViewerScreen(
           attachmentId: state.pathParameters['attachmentId']!,
         ),
       ),
       GoRoute(
         path: AppRoutes.diagnostics,
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const DiagnosticsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notificationSettings,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
     ],
   );

@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/constants/app_constants.dart';
+import 'core/notifications/notification_service.dart';
 import 'data/remote/supabase_client_provider.dart';
 import 'data/repositories/budget_alert_service.dart';
+import 'data/repositories/notification_scheduler.dart';
 import 'data/sync/sync_engine.dart';
 import 'routing/app_router.dart';
+import 'routing/root_navigator_key.dart';
 
 /// Visual design is out of scope (spec §0 rule 6) — Material 3 defaults
 /// with a single seed colour, following the system light/dark setting.
@@ -27,6 +33,7 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     with WidgetsBindingObserver {
   static const _resumeThrottle = Duration(seconds: 30);
   DateTime? _lastResumeSync;
+  StreamSubscription<String>? _notificationTapSub;
 
   @override
   void initState() {
@@ -38,11 +45,37 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     // harmless no-op if nothing is signed in yet. The `ref.listen` in
     // `build()` covers a sign-in that happens later in this app session.
     engine.sync();
+
+    // T-13.2: recurring notifications are re-armed on every app start,
+    // since Android clears alarms on reboot and this app has no background
+    // execution to re-arm them any other way.
+    ref
+        .read(notificationSchedulerProvider)
+        .runAll(AppConstants.seedHouseholdId);
+
+    // T-13.4: deep-link a tapped notification into its target route. A
+    // foreground tap arrives on this stream; a cold-start tap (the
+    // notification is what launched the app) is handled once the first
+    // frame has mounted the router, below.
+    _notificationTapSub = NotificationService.instance.onTap.listen(
+      _openNotificationTarget,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final launchPayload = NotificationService.instance.consumeLaunchPayload();
+      if (launchPayload != null) _openNotificationTarget(launchPayload);
+    });
+  }
+
+  void _openNotificationTarget(String path) {
+    final context = rootNavigatorKey.currentContext;
+    if (context == null) return;
+    GoRouter.of(context).push(path);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _notificationTapSub?.cancel();
     super.dispose();
   }
 
@@ -56,9 +89,13 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     }
     _lastResumeSync = now;
     ref.read(syncEngineProvider).sync();
-    // Budget alerts are evaluated on every resume regardless of the sync
-    // throttle above (spec §11.7) — it's a local read, not a network call.
+    // Budget alerts and the rest of the notification types are evaluated on
+    // every resume regardless of the sync throttle above (spec §11.7/
+    // §11.12) — both are local reads, not network calls.
     ref.read(budgetAlertServiceProvider).evaluate(AppConstants.seedHouseholdId);
+    ref
+        .read(notificationSchedulerProvider)
+        .runAll(AppConstants.seedHouseholdId);
   }
 
   @override

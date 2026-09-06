@@ -95,10 +95,15 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # Noto Sans (OFL-licensed), embedded so the PDF export report (spec
+  # §11.11/T-12.2) can render the ₹ glyph — the `pdf` package's base14
+  # fonts (Helvetica etc.) don't cover U+20B9, only Flutter's own on-screen
+  # text rendering does. Not registered under `fonts:` below since these are
+  # loaded as raw bytes for `pw.Font.ttf(...)`, not used as a Flutter
+  # TextStyle font family.
+  assets:
+    - assets/fonts/NotoSans-Regular.ttf
+    - assets/fonts/NotoSans-Bold.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -5,10 +5,12 @@ import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/money/money.dart';
 import '../../core/notifications/notification_service.dart';
+import '../../core/notifications/notification_settings.dart';
 import '../../core/time/app_time.dart';
 import '../../domain/models/budget.dart' as domain;
 import '../../domain/models/budget_status.dart';
 import '../../domain/models/enums.dart';
+import '../../routing/routes.dart';
 import 'budget_repository.dart';
 
 part 'budget_alert_service.g.dart';
@@ -35,6 +37,7 @@ class BudgetAlertService {
         .first;
     if (budgets.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
+    if (!prefs.loadNotificationSettings().budgetAlertsEnabled) return;
     for (final budget in budgets) {
       final status = await _budgetRepo.watchStatus(budget).first;
       await _maybeNotify(prefs, budget, status);
@@ -65,6 +68,12 @@ class BudgetAlertService {
       id: budget.id.hashCode & 0x7fffffff,
       title: 'Budget alert',
       body: body,
+      channelId: 'budget_alerts',
+      channelName: 'Budget alerts',
+      channelDescription:
+          'Alerts when a budget crosses its warning or exceeded threshold',
+      // Spec §11.12/T-13.4: "Tapping a budget alert opens that budget."
+      payload: AppRoutes.budgetDetailPath(budget.id),
     );
   }
 
