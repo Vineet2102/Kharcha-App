@@ -2021,3 +2021,20 @@ actual default branch (created back in T-0.4) is `master`. Copied the
 workflow verbatim except for that one trigger, which would otherwise never
 fire on an ordinary push. `release.yml` needed no such change — its trigger
 is tag-based (`v*`), not branch-based.
+
+### Golden-path integration test simulates offline via a provider override, not real airplane mode
+
+Spec §13's golden path includes a "toggle offline" step inside one
+continuous test. Every prior live-device gate in this project (Gate 3, 5,
+10) toggled real airplane mode externally via `adb shell svc wifi/data
+disable`, run alongside — never inside — the automated test; `integration_test`
+itself has no built-in way to flip a device's real radio, and adding native
+device automation (e.g. a `patrol`-style dependency) for one test step was
+judged out of proportion to the task. Instead, `golden_path_test.dart`
+overrides `connectivityServiceProvider` with a small fake the test fully
+controls (`goOffline()`/`goOnline()`), while every other component — Drift,
+the real `SyncEngine`, `OutboxProcessor`, `PullService`, real Supabase auth
+and Postgrest calls — runs completely unmocked. This keeps the test
+deterministic (no race against how fast a real radio actually toggles)
+without weakening the "does the real sync engine actually converge" claim
+the golden path exists to prove.
