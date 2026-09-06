@@ -2038,3 +2038,52 @@ and Postgrest calls — runs completely unmocked. This keeps the test
 deterministic (no race against how fast a real radio actually toggles)
 without weakening the "does the real sync engine actually converge" claim
 the golden path exists to prove.
+
+### Golden-path test: what a real device run found that a written-but-unrun test couldn't
+
+The suite was written and statically clean (`flutter analyze` passing) well
+before a device was available to run it on. The first live run against a
+real emulator and the real Supabase project failed five times in a row
+before passing — every failure was in the test's own assumptions, never the
+app:
+
+1. `_addExpense` filled the amount but never picked a category or payment
+   method, tripping `_save()`'s own "Pick a category."/"Pick a payment
+   method." guards (spec §11.2) — invisible in the widget test in
+   `expense_detail_screen_test.dart`, since that test only checks the
+   amount-empty validation path, never a full successful save.
+2. The Save button sits below the fold on a real device screen (category
+   chips + payment method chips + date picker + note/merchant fields +,
+   for an admin, a "Paid by" picker easily exceed one screen height) —
+   `pumpAndSettle` doesn't scroll; needed `dragUntilVisible`.
+3. Going offline does not itself trigger a sync attempt — only an
+   offline→online transition does (`SyncEngine.start()`'s connectivity
+   listener only calls `sync()` on `cameOnline`). The "Offline" banner is
+   therefore only ever populated by *some other* trigger discovering no
+   network mid-cycle — in this test, the next expense's own
+   `ExpenseRepository.create()` → `_triggerSync()` call. Asserting the
+   banner right after `goOffline()` (before anything had a reason to
+   attempt a cycle) was checking for a UI update the app was never going to
+   produce at that point.
+4. `SyncEngine.sync()` is single-flight (spec §9.6, T-4.5): the dashboard
+   total updates from the local Drift write alone, before the real
+   push/pull that same write's `_triggerSync()` kicked off has necessarily
+   finished. Toggling offline and writing again immediately after risked
+   the second trigger silently no-op'ing against the first cycle's
+   still-held lock. Fixed by waiting for the banner to leave "Syncing…"
+   before moving on.
+5. `SyncBanner`'s copy is singular/plural ("1 change waiting" vs "N changes
+   waiting" — spec's own literal example uses the plural, but this device
+   run's actual pending count was exactly 1) — a substring check for
+   "changes waiting" alone missed the singular case entirely.
+
+None of these needed an app-code change — all five were the integration
+test's own timing/interaction assumptions, hardened with a polling
+`_pumpUntil` helper (replacing every fixed-duration `pumpAndSettle`, since a
+real network's latency can't be guessed at) and a `_tap` retry wrapper (a
+transient "no View ancestor" framework error was observed once, immediately
+after a live Drift-stream-driven rebuild; retrying is safe because it
+checks the target is still present before retrying, so it can never
+double-submit a Save). This is the concrete version of what spec §13's "run
+on a real device" requirement is for: none of it was reachable from a
+mocked widget test or from static analysis.

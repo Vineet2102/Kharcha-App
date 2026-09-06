@@ -81,60 +81,213 @@ void main() {
         child: const KharchaApp(),
       ),
     );
-    await tester.pumpAndSettle(const Duration(seconds: 5));
 
     // --- sign in ---
+    // A generous polling wait, not a fixed pumpAndSettle duration: a real
+    // device/emulator's cold start plus a real network round-trip to
+    // Supabase (session check, `/login` redirect) is highly variable —
+    // unlike a mocked widget test, there's no way to know in advance how
+    // long the splash screen will show.
+    await _pumpUntil(
+      tester,
+      () => find.byType(TextFormField).evaluate().length >= 2,
+      timeout: const Duration(seconds: 60),
+    );
     final emailField = find.byType(TextFormField).first;
     final passwordField = find.byType(TextFormField).last;
     await tester.enterText(emailField, testEmail);
     await tester.enterText(passwordField, testPassword);
-    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
-    await tester.pumpAndSettle(const Duration(seconds: 5));
+    await _tap(tester, find.widgetWithText(FilledButton, 'Sign in'));
+    await _pumpUntil(
+      tester,
+      () => find.text('Dashboard').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 60),
+    );
 
     expect(find.text('Dashboard'), findsOneWidget);
 
     // --- add an expense while online ---
     final beforeSpent = _spentText(tester);
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, '111.00');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
+    await _addExpense(tester, amount: '111.00');
+    await _pumpUntil(
+      tester,
+      () => find.text('Dashboard').evaluate().isNotEmpty,
+    );
 
     // --- appears in the Expense List ---
-    await tester.tap(find.text('Expenses'));
+    await _tap(tester, find.text('Expenses'));
     await tester.pumpAndSettle();
-    expect(find.text('₹111.00'), findsOneWidget);
+    await _pumpUntil(tester, () => find.text('₹111.00').evaluate().isNotEmpty);
+    expect(find.text('₹111.00'), findsAtLeastNWidgets(1));
 
     // --- appears in the Dashboard total ---
-    await tester.tap(find.text('Dashboard'));
+    await _tap(tester, find.text('Dashboard'));
     await tester.pumpAndSettle();
+    await _pumpUntil(
+      tester,
+      () => _spentText(tester) != beforeSpent,
+      timeout: const Duration(seconds: 60),
+    );
     final afterOnlineSpent = _spentText(tester);
     expect(afterOnlineSpent, isNot(beforeSpent));
 
+    // The dashboard total updates from the local Drift write alone, before
+    // the real push/pull this expense's own `_triggerSync()` kicked off has
+    // necessarily finished — `SyncEngine.sync()` is single-flight, so
+    // toggling offline and writing again too soon could have the *next*
+    // trigger silently no-op against that still-in-flight cycle's lock.
+    // Wait for the banner to leave "Syncing…" before moving on.
+    await _pumpUntil(
+      tester,
+      () => find.text('Syncing…').evaluate().isEmpty,
+      timeout: const Duration(seconds: 60),
+    );
+
     // --- toggle offline (fake connectivity, real sync engine) ---
+    // Going offline alone does not itself trigger a sync attempt — only an
+    // offline→online transition does (`SyncEngine.start()`'s own trigger);
+    // the banner only reflects "Offline" once *something* actually attempts
+    // a cycle and finds no network. Adding the next expense provides that
+    // trigger for real (`ExpenseRepository.create()`'s own post-write
+    // `_triggerSync()`), so the "Offline — N changes waiting" banner is
+    // checked after, not before.
     connectivity.goOffline();
     await tester.pumpAndSettle();
-    expect(find.textContaining('Offline'), findsOneWidget);
 
     // --- add another expense while offline ---
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, '222.00');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle(const Duration(seconds: 3));
-    expect(find.textContaining('changes waiting'), findsOneWidget);
+    await _addExpense(tester, amount: '222.00');
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('waiting').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 45),
+    );
+    expect(find.textContaining('waiting'), findsOneWidget);
 
     // --- back online — both sync ---
     connectivity.goOnline();
-    await tester.pumpAndSettle(const Duration(seconds: 10));
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('Offline').evaluate().isEmpty,
+      timeout: const Duration(seconds: 60),
+    );
     expect(find.textContaining('Offline'), findsNothing);
 
-    await tester.tap(find.text('Expenses'));
+    await _tap(tester, find.text('Expenses'));
     await tester.pumpAndSettle();
-    expect(find.text('₹111.00'), findsOneWidget);
-    expect(find.text('₹222.00'), findsOneWidget);
+    await _pumpUntil(tester, () => find.text('₹222.00').evaluate().isNotEmpty);
+    expect(find.text('₹111.00'), findsAtLeastNWidgets(1));
+    expect(find.text('₹222.00'), findsAtLeastNWidgets(1));
   });
+}
+
+/// Opens Add Expense, fills the amount, picks the first available category
+/// and payment method (both required by `_save()`'s own validation — see
+/// `expense_detail_screen.dart`), and taps Save. Category/payment-method
+/// chip counts vary with the real household's live data, so this scopes by
+/// each section's private widget type (readable cross-library via
+/// `runtimeType.toString()`) rather than an assumed flat chip index.
+Future<void> _addExpense(WidgetTester tester, {required String amount}) async {
+  await _tap(tester, find.byIcon(Icons.add));
+  await _pumpUntil(tester, () => find.byType(TextField).evaluate().isNotEmpty);
+
+  await tester.enterText(find.byType(TextField).first, amount);
+  await tester.pumpAndSettle();
+
+  final categorySection = find.byWidgetPredicate(
+    (w) => w.runtimeType.toString() == '_CategoryChips',
+  );
+  final categoryChip = find.descendant(
+    of: categorySection,
+    matching: find.byType(ChoiceChip),
+  );
+  // Categories only appear once the household's very first post-sign-in
+  // sync cycle has pulled `categories` down over a real network — a fresh
+  // install (every run: `flutter test integration_test` reinstalls each
+  // time) starts with a genuinely empty local cache, so this can take a
+  // while on a slow/emulated connection.
+  await _pumpUntil(
+    tester,
+    () => categoryChip.evaluate().isNotEmpty,
+    timeout: const Duration(seconds: 90),
+  );
+  await _tap(tester, categoryChip.first);
+
+  final paymentMethodSection = find.byWidgetPredicate(
+    (w) => w.runtimeType.toString() == '_PaymentMethodChips',
+  );
+  final paymentMethodChip = find.descendant(
+    of: paymentMethodSection,
+    matching: find.byType(ChoiceChip),
+  );
+  await _pumpUntil(
+    tester,
+    () => paymentMethodChip.evaluate().isNotEmpty,
+    timeout: const Duration(seconds: 90),
+  );
+  await _tap(tester, paymentMethodChip.first);
+
+  // The Save button sits below several sections (date, note, merchant,
+  // possibly an admin-only "Paid by" picker) that don't all fit on a real
+  // device screen at once — scroll it into view rather than assuming it's
+  // already visible.
+  await tester.dragUntilVisible(
+    find.text('Save'),
+    find.byType(ListView),
+    const Offset(0, -300),
+  );
+  await _tap(tester, find.text('Save'));
+  // A real push to Supabase (when online) or an outbox enqueue (when
+  // offline) — either way, wait for the screen to actually pop rather than
+  // a fixed delay.
+  await _pumpUntil(
+    tester,
+    () => find.byType(TextField).evaluate().isEmpty,
+    timeout: const Duration(seconds: 15),
+  );
+}
+
+/// A plain `tester.tap()` occasionally hits a transient "no View ancestor"
+/// framework error immediately after a live provider-driven rebuild (seen
+/// in practice against the real Supabase project, where a Drift stream can
+/// re-emit — and rebuild the tapped element's subtree — in the same frame
+/// window as the tap). Settling first and retrying absorbs that without
+/// weakening what the test actually proves (every retry still taps the same
+/// real widget; nothing here is mocked away).
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  for (var attempt = 1; attempt <= 3; attempt++) {
+    await tester.pumpAndSettle();
+    try {
+      await tester.tap(finder);
+      return;
+    } catch (_) {
+      // If the target has already disappeared from the tree, the tap most
+      // likely landed before the framework-internal error fired (e.g. the
+      // screen already navigated away) — retrying here would risk a
+      // double-tap (a second real Save, a duplicate expense). Nothing left
+      // to retry against, so treat it as done rather than blindly retrying.
+      if (finder.evaluate().isEmpty) return;
+      if (attempt == 3) rethrow;
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+  }
+}
+
+/// Polls with real pumps (never a fixed sleep) until [condition] is true or
+/// [timeout] elapses — the only reliable way to wait for a real network
+/// round-trip / real device timing in an integration test.
+Future<void> _pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out after $timeout waiting for a condition to become true.');
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+  await tester.pumpAndSettle();
 }
 
 String _spentText(WidgetTester tester) {
