@@ -2013,3 +2013,11 @@ renders — it failed even with the provider pre-seeded, because the getter
 never subscribed to it. Fixed by switching both getters to `ref.watch` (both
 call sites are already inside `build()`, so this is a pure fix with no other
 code path affected).
+
+### `ci.yml` triggers on `master`, not spec §14.1's literal `main`
+
+Spec §14.1's YAML is written against a `main` default branch; this repo's
+actual default branch (created back in T-0.4) is `master`. Copied the
+workflow verbatim except for that one trigger, which would otherwise never
+fire on an ordinary push. `release.yml` needed no such change — its trigger
+is tag-based (`v*`), not branch-based.
