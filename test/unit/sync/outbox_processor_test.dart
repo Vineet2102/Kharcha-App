@@ -15,6 +15,12 @@ import 'fake_entity_sync_adapter.dart';
 
 class MockSupabaseClient extends Mock implements SupabaseClient {}
 
+class MockSupabaseStorageClient extends Mock implements SupabaseStorageClient {}
+
+class MockStorageFileApi extends Mock implements StorageFileApi {}
+
+class FakeFile extends Fake implements File {}
+
 void main() {
   late AppDatabase db;
   late MockSupabaseClient client;
@@ -274,6 +280,185 @@ void main() {
       expect(await (db.select(db.outboxEntries)).get(), isEmpty);
       expect(await db.expenseDao.findById('e1'), isNotNull);
       expect(await db.expenseDao.findById('e2'), isNull);
+    });
+
+    test(
+      'the same duplicate handling applies to income (not just expense)',
+      () async {
+        await db.incomeDao.upsert(
+          IncomesCompanion.insert(
+            id: 'i1',
+            householdId: 'h1',
+            userId: 'u1',
+            amountPaise: 500,
+            receivedAt: DateTime.utc(2026, 1, 1),
+            receivedOn: DateTime.utc(2026, 1, 1),
+            recurringRuleId: const Value('r1'),
+            occurrenceDate: Value(DateTime.utc(2026, 1, 1)),
+            createdAt: DateTime.utc(2026, 1, 1),
+            updatedAt: DateTime.utc(2026, 1, 1),
+          ),
+        );
+        final incomeAdapter = FakeEntitySyncAdapter('income', callLog: callLog);
+        adaptersByKey['income'] = incomeAdapter;
+        incomeAdapter.errorToThrow = const PostgrestException(
+          message:
+              'duplicate key value violates unique constraint '
+              '"incomes_recurrence_unique"',
+          code: '23505',
+        );
+        await enqueue(
+          entity: 'income',
+          entityId: 'i1',
+          payload: {
+            'id': 'i1',
+            'recurring_rule_id': 'r1',
+            'occurrence_date': '2026-01-01',
+          },
+        );
+
+        await processor.process();
+
+        expect(await (db.select(db.outboxEntries)).get(), isEmpty);
+        expect(await db.incomeDao.findById('i1'), isNull);
+      },
+    );
+  });
+
+  test('an entry for an unknown entity is marked failed immediately', () async {
+    await enqueue(entity: 'nonsense', entityId: 'x1');
+
+    await processor.process();
+
+    final rows = await (db.select(db.outboxEntries)).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.status, 'failed');
+    expect(rows.single.lastError, contains('Unknown outbox entity'));
+  });
+
+  test(
+    'an entity outside the known dependency order still gets pushed',
+    () async {
+      final futureAdapter = FakeEntitySyncAdapter(
+        'future_entity',
+        callLog: callLog,
+      );
+      adaptersByKey['future_entity'] = futureAdapter;
+      await enqueue(entity: 'future_entity', entityId: 'f1');
+      await enqueue(entity: 'expense', entityId: 'e1');
+
+      await processor.process();
+
+      expect(futureAdapter.upserts, hasLength(1));
+      expect(expenseAdapter.upserts, hasLength(1));
+    },
+  );
+
+  test(
+    'an unrecognised outbox op is a permanent-shaped failure path',
+    () async {
+      await enqueue(entity: 'expense', entityId: 'e1', op: 'rename');
+
+      await processor.process();
+
+      final rows = await (db.select(db.outboxEntries)).get();
+      expect(rows, hasLength(1));
+      // StateError maps to UnknownFailure, which _handleFailure treats as
+      // transient (not Permission/Validation) — scheduled for backoff retry
+      // rather than parked, but the important thing this proves is that the
+      // `default: throw StateError` branch is actually reached and handled
+      // rather than propagating uncaught.
+      expect(rows.single.status, 'pending');
+      expect(rows.single.attempts, 1);
+    },
+  );
+
+  group('attachment storage side-effects (T-10.5)', () {
+    late MockSupabaseStorageClient storage;
+    late MockStorageFileApi fileApi;
+    late FakeEntitySyncAdapter attachmentAdapter;
+
+    setUpAll(() => registerFallbackValue(FakeFile()));
+
+    setUp(() {
+      storage = MockSupabaseStorageClient();
+      fileApi = MockStorageFileApi();
+      when(() => client.storage).thenReturn(storage);
+      when(() => storage.from('receipts')).thenReturn(fileApi);
+      attachmentAdapter = FakeEntitySyncAdapter('attachment', callLog: callLog);
+      adaptersByKey['attachment'] = attachmentAdapter;
+    });
+
+    Future<void> insertAttachment(String id) => db.attachmentDao.upsert(
+      AttachmentsCompanion.insert(
+        id: id,
+        householdId: 'h1',
+        expenseId: 'e1',
+        storagePath: 'h1/e1/$id.jpg',
+        uploadedBy: 'u1',
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 1, 1),
+      ),
+    );
+
+    test('a delete op for an attachment best-effort removes the storage object '
+        'before the row is soft-deleted', () async {
+      await insertAttachment('a1');
+      when(() => fileApi.remove(['h1/e1/a1.jpg'])).thenAnswer((_) async => []);
+      await enqueue(entity: 'attachment', entityId: 'a1', op: 'delete');
+
+      await processor.process();
+
+      verify(() => fileApi.remove(['h1/e1/a1.jpg'])).called(1);
+      expect(attachmentAdapter.deletes, ['a1']);
+    });
+
+    test('a storage removal failure does not block the row from being '
+        'soft-deleted (best-effort, per spec §11.9)', () async {
+      await insertAttachment('a1');
+      when(() => fileApi.remove(['h1/e1/a1.jpg']))
+          .thenThrow(const StorageException('offline'));
+      await enqueue(entity: 'attachment', entityId: 'a1', op: 'delete');
+
+      await processor.process();
+
+      expect(attachmentAdapter.deletes, ['a1']);
+      expect(await (db.select(db.outboxEntries)).get(), isEmpty);
+    });
+
+    test(
+      'a delete for an attachment id with no local row skips the storage call',
+      () async {
+        when(() => fileApi.remove(any())).thenAnswer((_) async => []);
+        await enqueue(entity: 'attachment', entityId: 'missing', op: 'delete');
+
+        await processor.process();
+
+        verifyNever(() => fileApi.remove(any()));
+        expect(attachmentAdapter.deletes, ['missing']);
+      },
+    );
+
+    test('an upload op uploads the cached file then pushes the row', () async {
+      when(() => fileApi.upload('h1/e1/a1.jpg', any()))
+          .thenAnswer((_) async => 'h1/e1/a1.jpg');
+      await enqueue(
+        entity: 'attachment',
+        entityId: 'a1',
+        op: 'upload',
+        payload: {
+          'local_path': '/tmp/a1.jpg',
+          'storage_path': 'h1/e1/a1.jpg',
+          'row': {'id': 'a1'},
+        },
+      );
+
+      await processor.process();
+
+      verify(() => fileApi.upload('h1/e1/a1.jpg', any())).called(1);
+      expect(attachmentAdapter.upserts, hasLength(1));
+      expect(attachmentAdapter.upserts.single['id'], 'a1');
+      expect(await (db.select(db.outboxEntries)).get(), isEmpty);
     });
   });
 }

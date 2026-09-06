@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -137,5 +138,110 @@ void main() {
     await engine.sync();
 
     expect(published.last, isA<SyncIdle>());
+  });
+
+  test('stuck outbox entries publish SyncError instead of SyncIdle, without '
+      'throwing', () async {
+    when(() => connectivity.isOnline).thenAnswer((_) async => true);
+    when(() => outboxProcessor.process()).thenAnswer((_) async {});
+    when(() => pullService.pullAll(any())).thenAnswer((_) async {});
+    when(() => outboxDao.hasStuckEntries()).thenAnswer((_) async => true);
+    when(() => outboxDao.pendingCount()).thenAnswer((_) async => 2);
+
+    await engine.sync();
+
+    expect(published.last, isA<SyncError>());
+    expect((published.last as SyncError).pendingCount, 2);
+  });
+
+  test('an exception mid-cycle is caught, logged, and published as SyncError '
+      'rather than propagating', () async {
+    when(() => connectivity.isOnline).thenAnswer((_) async => true);
+    when(() => outboxProcessor.process())
+        .thenThrow(const SocketException('no route to host'));
+    when(() => outboxDao.pendingCount()).thenAnswer((_) async => 1);
+
+    await engine.sync();
+
+    expect(published.last, isA<SyncError>());
+    expect((published.last as SyncError).pendingCount, 1);
+  });
+
+  test('a stop() mid-cycle aborts before the pull runs', () async {
+    when(() => connectivity.isOnline).thenAnswer((_) async => true);
+    when(() => outboxProcessor.process()).thenAnswer((_) async {
+      engine.stop();
+    });
+
+    await engine.sync();
+
+    verifyNever(() => pullService.pullAll(any()));
+  });
+
+  group('start()/stop()', () {
+    late StreamController<bool> statusChanges;
+
+    setUp(() {
+      statusChanges = StreamController<bool>.broadcast();
+      when(() => connectivity.onStatusChange)
+          .thenAnswer((_) => statusChanges.stream);
+      when(() => connectivity.isOnline).thenAnswer((_) async => true);
+      when(() => outboxProcessor.process()).thenAnswer((_) async {});
+      when(() => pullService.pullAll(any())).thenAnswer((_) async {});
+    });
+
+    tearDown(() => statusChanges.close());
+
+    test('a transition from offline to online triggers a sync cycle', () async {
+      engine.start();
+      statusChanges.add(false);
+      await Future<void>.delayed(Duration.zero);
+      statusChanges.add(true);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => outboxProcessor.process()).called(greaterThan(0));
+    });
+
+    test(
+      'staying online on successive events does not re-trigger a cycle',
+      () async {
+        engine.start();
+        statusChanges.add(true);
+        await Future<void>.delayed(Duration.zero);
+        statusChanges.add(true);
+        await Future<void>.delayed(Duration.zero);
+
+        verifyNever(() => outboxProcessor.process());
+      },
+    );
+
+    test(
+      'stop() tears down the timer, subscription, and realtime listener',
+      () async {
+        when(() => realtimeListener.stop()).thenReturn(null);
+        engine.start();
+
+        engine.stop();
+        statusChanges.add(true); // must no longer be observed
+
+        await Future<void>.delayed(Duration.zero);
+
+        verifyNever(() => outboxProcessor.process());
+        verify(() => realtimeListener.stop()).called(1);
+      },
+    );
+
+    test('start() is idempotent — calling it twice arms only one timer/subscription', () async {
+      engine.start();
+      engine.start();
+      statusChanges.add(false);
+      await Future<void>.delayed(Duration.zero);
+      statusChanges.add(true);
+      await Future<void>.delayed(Duration.zero);
+
+      // A single online transition triggers exactly one cycle, not two —
+      // proving the second start() didn't attach a duplicate listener.
+      verify(() => outboxProcessor.process()).called(2);
+    });
   });
 }

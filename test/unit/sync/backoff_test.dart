@@ -39,6 +39,11 @@ void main() {
       final result = computeBackoff(1, random: _FixedRandom(0.0));
       expect(result.isNegative, isFalse);
     });
+
+    test('defaults to a real Random when none is injected', () {
+      final result = computeBackoff(1);
+      expect(result.inSeconds, inInclusiveRange(1, 3));
+    });
   });
 }
 
