@@ -1920,3 +1920,72 @@ subsequent test failure traced to real bugs, none in app code:
     error, just an empty finder. Fixed by growing
     `tester.view.physicalSize` before pumping (reset via `addTearDown`)
     rather than teaching every assertion to scroll first.
+
+### iOS platform restored — the `com.apple.provenance` blocker is fixed upstream
+
+- Phase 0 recorded the iOS half of Gate 0 as **BLOCKED** on macOS tagging
+  build output with a `com.apple.provenance` extended attribute that
+  `codesign` unconditionally refuses to sign, worked around at the time by
+  hand-patching `removeExtendedAttributes` in the FVM-managed SDK's
+  `packages/flutter_tools/lib/src/ios/mac.dart` — a patch that entry
+  explicitly noted "is NOT part of the Kharcha repo" and would be lost on
+  the next SDK reinstall.
+- That patch is now **unnecessary**: Flutter 3.47.2 ships the same fix
+  upstream, removing `com.apple.provenance` by name alongside
+  `com.apple.FinderInfo`. Verified it is genuinely upstream rather than a
+  surviving local edit — this session installed the SDK into an empty
+  `~/fvm/versions/` from scratch and `git status` in the SDK checkout is
+  clean. `flutter run` on the simulator now completes with no codesign
+  failure at any step.
+- `ios/` was therefore re-created rather than repaired, using the same
+  Flutter revision `.metadata` already pins (`d3b14c8769`), so the template
+  is consistent with the Android side rather than a mix of two SDK versions.
+  The first attempt used the machine's global Homebrew Flutter (3.44.2,
+  Dart 3.12.2), which cannot resolve this project at all (`pubspec.yaml`
+  needs SDK `^3.13.2`) — FVM, which the project has pinned since T-0.2, is
+  not optional here.
+
+### `flutter create` on an existing project rewrites more than the platform folder
+
+Running `fvm flutter create --platforms=ios .` also modified three tracked
+files that have nothing to do with iOS, all reverted before committing:
+
+- `.gitignore` — re-introduced the template's blanket `.fvm/` ignore,
+  undoing the Phase-0 decision above to keep `.fvm/fvm_config.json`
+  tracked. Left as-is this would have quietly untracked the pinned
+  Flutter version.
+- `.metadata` — dropped the `android` platform block from the `migration`
+  list while adding nothing new (the `ios` entry was already there from
+  T-0.3, since the original project *was* created with both platforms).
+- `pubspec.lock` — resolved 24 packages upward, `analyzer` 13.3.0 → 14.3.0
+  among them, despite the lockfile being committed deliberately per T-0.5.
+  Reverting the lock and re-running `fvm flutter pub get` reproduces the
+  committed resolution exactly.
+
+### iOS launch screen mirrors Android's, rather than the Flutter template's
+
+Android's launch window (`drawable-v21/launch_background.xml` +
+`values/`/`values-night/styles.xml`) is a plain `?android:colorBackground`
+fill with no logo, so it follows the system light/dark setting. The Flutter
+iOS template instead hardcodes white with a centred `LaunchImage`. Matched
+Android by stripping the image view and filling the root view with
+`systemBackgroundColor` — UIKit's dynamic white/black — so neither platform
+flashes a light panel before the first Flutter frame on a device in dark
+mode. The `LaunchImage` imageset is left in the asset catalog, unreferenced,
+the same way Android keeps its `<bitmap>` block commented out for whenever
+T-16.2's real icon work happens.
+
+Nothing above the platform layer needed a change for the splash journey:
+`main()`'s bootstrap, `SplashScreen`, and the router's auth `redirect` are
+all pure Dart and behave identically on both platforms.
+
+### Simulator smoke test ran against a placeholder Supabase config
+
+`config/dev.json` is gitignored and holds the real project's credentials on
+the build machine; this session created a placeholder one
+(`https://placeholder.supabase.co`) purely so `AppConfig.assertValid()`
+passes. That is sufficient for exactly the journey under test — splash →
+`redirect` → `/login` never makes a network call, since it turns only on
+`client.auth.currentSession` being null — and the run log confirms
+`***** Supabase init completed *****` with a placeholder URL. Actually
+signing in from iOS against the real project remains unverified.
