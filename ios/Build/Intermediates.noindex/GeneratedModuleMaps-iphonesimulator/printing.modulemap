@@ -1,0 +1,4 @@
+module printing {
+header "printing-Swift.h"
+export *
+}

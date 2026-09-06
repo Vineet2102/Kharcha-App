@@ -1,0 +1,4 @@
+module SDWebImageWebPCoder {
+umbrella "/Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImageWebPCoder/SDWebImageWebPCoder/Classes"
+export *
+}

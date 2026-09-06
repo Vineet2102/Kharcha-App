@@ -1,0 +1,4 @@
+module integration_test {
+umbrella "/Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/integration_test/Sources/integration_test/include"
+export *
+}

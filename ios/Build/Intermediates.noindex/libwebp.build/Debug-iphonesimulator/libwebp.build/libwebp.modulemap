@@ -1,0 +1,4 @@
+module libwebp {
+umbrella "/Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/libwebp-Xcode/include"
+export *
+}

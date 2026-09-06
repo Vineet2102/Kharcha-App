@@ -1,0 +1,20 @@
+dependencies: \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDatabase.m \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/sqflite_darwin.build/Debug-iphonesimulator/sqflite_darwin.build/DerivedSources/resource_bundle_accessor.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Foundation.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/DarwinFoundation1.modulemap \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDatabase.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteCursor.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteOperation.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteImport.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/include/sqflite_darwin/SqfliteImportPublic.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/Debug-iphonesimulator/Flutter.framework/Modules/module.modulemap \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqflitePlugin.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/include/sqflite_darwin/SqflitePluginPublic.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinImport.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinDB.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinDatabase.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinResultSet.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinDatabaseAdditions.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/sqflite_darwin-2.4.3+1/darwin/sqflite_darwin/Sources/sqflite_darwin/SqfliteDarwinDatabaseQueue.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/SQLite3.modulemap

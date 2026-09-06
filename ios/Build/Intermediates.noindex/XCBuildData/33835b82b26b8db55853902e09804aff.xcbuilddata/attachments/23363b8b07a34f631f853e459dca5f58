@@ -1,0 +1,4 @@
+module permission_handler_apple {
+umbrella "/Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/include"
+export *
+}

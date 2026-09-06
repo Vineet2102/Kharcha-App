@@ -1,0 +1,39 @@
+{
+  "" : {
+    "diagnostics" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/flutter_secure_storage_darwin-primary.dia",
+    "emit-module-dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/flutter_secure_storage_darwin-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/flutter_secure_storage_darwin-primary-emit-module.dia",
+    "pch" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/flutter_secure_storage_darwin-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/flutter_secure_storage_darwin-primary.swiftdeps"
+  },
+  "/Users/ext1019/.pub-cache/hosted/pub.dev/flutter_secure_storage_darwin-0.4.0/darwin/flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/FlutterSecureStorage.swift" : {
+    "const-values" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.swiftconstvalues",
+    "dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.d",
+    "diagnostics" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.dia",
+    "index-unit-output-path" : "/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.o",
+    "llvm-bc" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.bc",
+    "object" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.o",
+    "swift-dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage.swiftdeps",
+    "swiftmodule" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorage~partial.swiftmodule"
+  },
+  "/Users/ext1019/.pub-cache/hosted/pub.dev/flutter_secure_storage_darwin-0.4.0/darwin/flutter_secure_storage_darwin/Sources/flutter_secure_storage_darwin/FlutterSecureStorageDarwinPlugin.swift" : {
+    "const-values" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.swiftconstvalues",
+    "dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.d",
+    "diagnostics" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.dia",
+    "index-unit-output-path" : "/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.o",
+    "llvm-bc" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.bc",
+    "object" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.o",
+    "swift-dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin.swiftdeps",
+    "swiftmodule" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/FlutterSecureStorageDarwinPlugin~partial.swiftmodule"
+  },
+  "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/DerivedSources/resource_bundle_accessor.swift" : {
+    "const-values" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.swiftconstvalues",
+    "dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.d",
+    "diagnostics" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.dia",
+    "index-unit-output-path" : "/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.o",
+    "llvm-bc" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.bc",
+    "object" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.o",
+    "swift-dependencies" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor.swiftdeps",
+    "swiftmodule" : "/Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/flutter_secure_storage_darwin.build/Debug-iphonesimulator/flutter_secure_storage_darwin.build/Objects-normal/arm64/resource_bundle_accessor~partial.swiftmodule"
+  }
+}

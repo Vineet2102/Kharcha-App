@@ -1,0 +1,9 @@
+#import <Foundation/Foundation.h>
+
+__BEGIN_DECLS
+
+NSBundle* flutter_local_notifications_flutter_local_notifications_SWIFTPM_MODULE_BUNDLE(void);
+
+#define SWIFTPM_MODULE_BUNDLE flutter_local_notifications_flutter_local_notifications_SWIFTPM_MODULE_BUNDLE()
+
+__END_DECLS

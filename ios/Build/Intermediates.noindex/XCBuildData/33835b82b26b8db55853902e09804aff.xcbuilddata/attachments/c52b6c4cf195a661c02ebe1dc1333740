@@ -1,0 +1,9 @@
+#import <Foundation/Foundation.h>
+
+__BEGIN_DECLS
+
+NSBundle* permission_handler_apple_permission_handler_apple_SWIFTPM_MODULE_BUNDLE(void);
+
+#define SWIFTPM_MODULE_BUNDLE permission_handler_apple_permission_handler_apple_SWIFTPM_MODULE_BUNDLE()
+
+__END_DECLS

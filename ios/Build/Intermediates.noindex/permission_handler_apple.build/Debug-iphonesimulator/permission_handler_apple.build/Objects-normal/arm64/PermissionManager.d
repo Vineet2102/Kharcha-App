@@ -1,0 +1,31 @@
+dependencies: \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/permission_handler_apple-9.6.1/ios/permission_handler_apple/Sources/permission_handler_apple/PermissionManager.m \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/permission_handler_apple.build/Debug-iphonesimulator/permission_handler_apple.build/DerivedSources/resource_bundle_accessor.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Foundation.framework/Modules/module.modulemap \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/permission_handler_apple-9.6.1/ios/permission_handler_apple/Sources/permission_handler_apple/PermissionManager.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/Debug-iphonesimulator/Flutter.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/UIKit.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/UserNotifications.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/AudioVideoPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/PermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/PermissionHandlerEnums.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/AVFoundation.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/AppTrackingTransparencyPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/UnknownPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/BackgroundRefreshStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/BluetoothPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/ContactPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/EventPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/LocationPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/MediaLibraryPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/PhonePermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/PhotoPermissionStrategy.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Photos.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/SensorPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/SpeechPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/StoragePermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/NotificationPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/CriticalAlertsPermissionStrategy.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/strategies/AssistantPermissionStrategy.h \
+  /Users/ext1019/.pub-cache/hosted/pub.dev/permission_handler_apple-9.6.1/ios/permission_handler_apple/Sources/permission_handler_apple/PermissionHandlerEnums.h \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/util/Codec.h

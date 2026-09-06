@@ -1,0 +1,4 @@
+module device_info_plus {
+umbrella "/Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/device_info_plus-13.2.0/Sources/device_info_plus/include"
+export *
+}

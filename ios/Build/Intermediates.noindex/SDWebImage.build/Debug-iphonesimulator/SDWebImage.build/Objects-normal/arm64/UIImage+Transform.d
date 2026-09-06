@@ -1,0 +1,19 @@
+dependencies: \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/Darwin.modulemap \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/UIImage+Transform.m \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/SDWebImage.build/Debug-iphonesimulator/SDWebImage.build/DerivedSources/resource_bundle_accessor.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Foundation.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/DarwinFoundation1.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/os.modulemap \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/UIImage+Transform.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageCompat.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/UIKit.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/CoreGraphics.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/CoreImage.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/NSImage+Compatibility.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDImageGraphics.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDGraphicsImageRenderer.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Private/NSBezierPath+SDRoundedCorners.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Private/SDInternalMacros.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Private/SDmetamacros.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Accelerate.framework/Modules/module.modulemap

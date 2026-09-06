@@ -1,0 +1,4 @@
+module share_plus {
+umbrella "/Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/share_plus-13.3.0/Sources/share_plus/include"
+export *
+}

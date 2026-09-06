@@ -1,0 +1,4 @@
+module flutter_local_notifications {
+umbrella "/Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/flutter_local_notifications-22.3.0/Sources/flutter_local_notifications/include"
+export *
+}

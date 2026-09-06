@@ -1,0 +1,19 @@
+dependencies: \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderConfig.m \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/SDWebImage.build/Debug-iphonesimulator/SDWebImage.build/DerivedSources/resource_bundle_accessor.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/Foundation.framework/Modules/module.modulemap \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/usr/include/DarwinFoundation1.modulemap \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderConfig.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageCompat.h \
+  /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks/UIKit.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderOperation.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloader.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDefine.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageOperation.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderRequestModifier.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderResponseModifier.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDWebImageDownloaderDecryptor.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDImageLoader.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDImageCoder.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/NSData+ImageContentType.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/SourcePackages/checkouts/SDWebImage/SDWebImage/Core/SDImageFrame.h

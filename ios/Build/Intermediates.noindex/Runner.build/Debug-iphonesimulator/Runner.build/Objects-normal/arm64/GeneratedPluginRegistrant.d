@@ -1,0 +1,26 @@
+dependencies: \
+  /Users/ext1019/Documents/VineetProject/ios/Runner/GeneratedPluginRegistrant.m \
+  /Users/ext1019/Documents/VineetProject/ios/Runner/GeneratedPluginRegistrant.h \
+  /Users/ext1019/Documents/VineetProject/build/ios/Debug-iphonesimulator/Flutter.framework/Modules/module.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/app_links.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/connectivity_plus.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/device_info_plus-13.2.0/Sources/device_info_plus/include/device_info_plus/FPPDeviceInfoPlusPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/device_info_plus.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/flutter_image_compress_common-1.1.1/Sources/flutter_image_compress_common/include/flutter_image_compress_common/ImageCompressPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/flutter_image_compress_common.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/flutter_local_notifications-22.3.0/Sources/flutter_local_notifications/include/flutter_local_notifications/FlutterLocalNotificationsPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/flutter_local_notifications.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/flutter_secure_storage_darwin.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/image_picker_ios-0.8.13+7/Sources/image_picker_ios/include/image_picker_ios/FLTImagePickerPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/image_picker_ios.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/integration_test.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/package_info_plus-10.2.1/Sources/package_info_plus/include/package_info_plus/FPPPackageInfoPlusPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/package_info_plus.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/permission_handler_apple-9.6.1/Sources/permission_handler_apple/include/permission_handler_apple/PermissionHandlerPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/permission_handler_apple.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/printing.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Flutter/ephemeral/Packages/.packages/share_plus-13.3.0/Sources/share_plus/include/share_plus/FPPSharePlusPlugin.h \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/share_plus.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/shared_preferences_foundation.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/sqflite_darwin.modulemap \
+  /Users/ext1019/Documents/VineetProject/ios/Build/Intermediates.noindex/GeneratedModuleMaps-iphonesimulator/url_launcher_ios.modulemap
