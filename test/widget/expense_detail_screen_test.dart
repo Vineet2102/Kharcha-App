@@ -116,6 +116,39 @@ void main() {
     await disposeAndFlush(tester);
   });
 
+  testWidgets(
+    'Add-expense form validation: an empty/invalid amount is rejected '
+    'with an inline error and never reaches a save (spec §13 widget row)',
+    (tester) async {
+      stubSignedInAs(auth, ownerId);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            supabaseClientProvider.overrideWithValue(client),
+            appDatabaseProvider.overrideWithValue(db),
+            syncEngineProvider.overrideWithValue(FakeSyncEngine()),
+            currentProfileProvider.overrideWith(
+              (ref) => Stream.value(profile(ownerId, 'Rupesh')),
+            ),
+          ],
+          child: const MaterialApp(home: ExpenseDetailScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter a valid amount.'), findsOneWidget);
+      // Only the pre-seeded `exp1` fixture from `setUp` exists — nothing new
+      // was created by this rejected save attempt.
+      expect(await db.select(db.expenses).get(), hasLength(1));
+
+      await disposeAndFlush(tester);
+    },
+  );
+
   testWidgets('an admin gets the full editable form for anyone\'s expense', (
     tester,
   ) async {
