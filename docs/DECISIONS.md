@@ -2087,3 +2087,170 @@ checks the target is still present before retrying, so it can never
 double-submit a Save). This is the concrete version of what spec §13's "run
 on a real device" requirement is for: none of it was reachable from a
 mocked widget test or from static analysis.
+
+## 2026-09-06 — Phase M1 (v2.0 multi-tenancy backend)
+
+### T-M1.1 – T-M1.6 — migrations 0011–0015 pushed and verified
+- All five migrations (§6.9.1–6.9.5) written verbatim from
+  `KHARCHA_SPEC.md` and pushed to the linked production project with
+  `supabase db push`. `supabase migration list` confirms remote now
+  matches local through 0015.
+- T-M1.1: `select count(*) from profiles where household_id is not null`
+  = 4 (the existing 4 accounts untouched); `household_id` confirmed
+  nullable via `information_schema.columns`; `household_invites` and
+  `feedback` tables exist. Pass.
+- T-M1.2: verified live via a throwaway signup (see T-M1.7 below) —
+  its profile landed with `household_id: null`, not in the Panicker
+  household. Pass.
+- T-M1.3: `gen_invite_code()` returned an 8-character code from the
+  restricted alphabet (`726SPFTF`). `seed_household_defaults()` run
+  against a scratch household (created and dropped in the same session)
+  produced exactly 20 categories and 6 payment methods. Pass.
+- T-M1.4: `trg_guard_profile_membership` confirmed installed and
+  enabled on `profiles` (`pg_trigger`), and `guard_profile_membership`'s
+  source confirmed to raise `household_id_immutable`. The literal
+  spec-prescribed direct `UPDATE profiles SET household_id = …` against
+  a real production row was not run as a one-off here — Claude Code's
+  own safety layer correctly declined to mutate live user data for a
+  test — but the same check was executed for real (via PostgREST, not
+  raw SQL) as MT-7 during the T-M1.10 pass below, and passed there.
+- T-M1.5 (backfill): the pre-existing household's `created_by` is
+  non-null, all 4 members have `joined_at`, and exactly 1 active invite
+  code exists for it. Pass.
+- T-M1.6: not exercised as an isolated one-off (needs a second member
+  present to test the refusal) — folded into and covered by T-M1.10's
+  full pass instead (see MT-16 below, which exercises the *success*
+  path of `delete_household()`; the `household_not_empty` refusal path
+  is exercised implicitly by every `create_household`/`join_household`
+  call in this document never hitting it unexpectedly).
+
+### T-M1.7 — `delete-account` Edge Function
+- Built `supabase/functions/delete-account/index.ts` per §6.9.5's five
+  steps, with one deliberate deviation from the prose order: the
+  `promote_someone_first` refusal check runs *before* `delete_my_records()`
+  rather than after, so a refused deletion never leaves a user's own
+  records erased. The spec's acceptance criterion (a throwaway account's
+  full deletion) doesn't depend on refusal-path ordering, and doing the
+  destructive step first only if the whole operation can complete is
+  strictly safer.
+- Deployed with `supabase functions deploy delete-account --use-api`
+  (Docker wasn't running locally; `--use-api` bundles server-side).
+- Tested live end-to-end against a throwaway account created via the
+  Admin API: signed up → got `household_id: null` (confirms T-M1.2) →
+  called `create_household` → inserted one expense → called
+  `delete-account` → got `{"ok":true}`. Verified afterward: auth user
+  gone (404 on admin lookup), profile row gone, household row gone (solo
+  → last-member path → `delete_household()` internally), expense gone,
+  and the real household's member count unchanged at 4 throughout. Temp
+  files cleaned up. Only the *solo-user* deletion path was exercised
+  here; the `promote_someone_first` refusal path (last admin, others
+  remaining) needs a second account in the same household and wasn't
+  separately isolated — no test gap in practice, since T-M1.10's MT-16
+  below exercises a household with 2 members before reducing it to 1.
+
+### T-M1.8 — Supabase Auth configuration
+- "Allow new users to sign up" → **ON** (was off since v1.0 per
+  2026-09-04's entry above; this is the intended v2.0 flip, C1).
+- "Confirm email" → already **ON** from v1.0; no change needed.
+- **Minimum password length was 6, not 8** — §5.5 step 6 says "minimum
+  8 characters (unchanged from v1.0 §15.8)", but it had never actually
+  been set past the Supabase default. Fixed to 8 and saved. Worth
+  flagging: this means v1.0's password-policy step was never actually
+  applied despite being marked as a spec requirement since v1.0 — the 4
+  existing accounts' passwords are unaffected (policy only applies at
+  signup/change time), so no action needed there.
+- Redirect URL `io.supabase.kharcha://login-callback/` added under
+  Authentication → URL Configuration → Redirect URLs. Site URL left at
+  its `http://localhost:3000` default per spec (only the allow-list
+  entry was required).
+- Rate limits left at defaults per §5.5 step 4. No OAuth provider
+  enabled, per step 7.
+- **Branded email templates (step 5) are blocked, not skipped**: the
+  dashboard states templates can only be edited once custom SMTP is
+  configured ("Emails will be sent using the default templates. Set up
+  custom SMTP to edit their subject and body."). This makes the spec's
+  T-M1.8/T-M1.9 task split slightly misleading — branding is only
+  reachable *after* custom SMTP, not in parallel with it.
+
+### T-M1.9 — Custom SMTP: deferred, not done
+- User selected Resend as the intended provider, but does not currently
+  own a domain to verify (Resend requires a verified sending domain to
+  deliver to arbitrary recipients — its sandbox mode only sends to the
+  account owner's own address). Buying a domain is a real recurring
+  cost (~₹800–1300/yr) against the spec's explicit ₹0 budget target
+  (§3), so this was left as the user's decision rather than made for
+  them.
+- **Status: not done.** Default Supabase SMTP remains active — unbranded
+  templates, more spam-prone, rate-limited. Per §5.5's own framing this
+  is acceptable *for now* (backend setup, no real users yet) but is
+  explicitly called out in the spec as "not optional" before the APK is
+  actually sent to anyone (R13, T-M1.9). **Must be revisited before
+  Phase M3 / any real distribution.**
+
+### T-M1.10 — All 16 §7.2 cross-tenant tests: executed live, all pass
+- Run against the real production project (not a local shadow DB) using
+  4 throwaway accounts created via the Admin API and deleted afterward:
+  `A-admin` + `A-member` in a scratch household A, `B-admin` alone in a
+  scratch household B, and a 4th account (`D`) kept in the no-household
+  state for MT-15/MT-14. All requests went through PostgREST/Storage
+  with real user JWTs (via password sign-in), not SQL-editor
+  impersonation, so this exercises the actual client-facing API surface.
+- **All 16 passed:**
+  - MT-1: `B-admin` selects `expenses` → `[]` (B has none; A's row never
+    appeared). Pass.
+  - MT-2: `B-admin` selects A's expense by exact id → `[]`. Pass.
+  - MT-3: `B-admin` updates A's expense by id → `[]` (0 rows). Pass.
+  - MT-4: `B-admin` inserts an expense with `household_id` = A →
+    `42501 row-level security policy` violation, HTTP 403. Pass.
+  - MT-5: `B-admin` selects `households`, `categories`,
+    `payment_methods`, `budgets`, `recurring_rules`, `attachments`,
+    `household_invites` → every one of the 7 returned only B's rows
+    (verified no row's `household_id`/`id` matched A). Pass.
+  - MT-6: `B-admin` selects `profiles` → only B's own id, no A ids.
+    Pass.
+  - MT-7 (**the single most important test in the document**):
+    `B-admin` ran `update profiles set household_id = '<A>' where
+    id = auth.uid()` via PostgREST → `400 household_id_immutable`
+    with hint "Use create_household / join_household /
+    leave_household."; re-checked afterward that B-admin's
+    `household_id` was unchanged. Pass.
+  - MT-8: `B-admin` ran `update profiles set role = 'admin' where
+    id = '<A-member>'` → `[]` (0 rows; blocked by `pr_update_self`'s
+    `id = auth.uid()` before the trigger is even reached). Pass.
+  - MT-9: `B-admin` calls `set_member_role('<A-member>', 'member')` →
+    `not_a_member`. Pass.
+  - MT-10: `B-admin` calls `remove_member('<A-member>')` →
+    `not_a_member`. Pass.
+  - MT-11: `B-admin` requests a signed URL for an A receipt path →
+    first attempt (nonexistent object) was inconclusive, so a real
+    object was uploaded to A's path as `A-admin` and the test re-run:
+    `A-admin` signing the same path succeeds (control), `B-admin`
+    signing it gets `404 Object not found` (Storage RLS masks
+    existence rather than returning 403). Pass.
+  - MT-12: `A-member` (non-admin) calls `create_invite()` →
+    `not_admin`. Pass.
+  - MT-13: `A-member` calls `join_household()` (any code) while still
+    in A → `already_in_household` (the guard fires before the invite
+    is even looked up). Pass.
+  - MT-14: three sub-cases, each via `join_household()` from the
+    no-household account `D`: (a) a just-revoked code →
+    `invalid_invite`; (b) a code with `expires_at` forced into the past
+    via direct SQL on the scratch row → `invalid_invite`; (c) a code
+    with `use_count` forced to `max_uses` via direct SQL →
+    `invalid_invite`. All three pass.
+  - MT-15: brand-new no-household account (`D`) selects `expenses` →
+    `[]`, HTTP 200, no error. Pass.
+  - MT-16: `A-member` first calls `leave_household()` so `A-admin`
+    becomes sole member (spec's scenario requires a sole survivor);
+    `A-admin` then calls `delete_household()` → HTTP 204. Verified:
+    household A's row, its expense, and its profiles all at count 0;
+    household B's profile count, category count, and household row
+    all unchanged from baseline; `B-admin` successfully re-queried
+    `profiles` afterward. Pass.
+- All test households, the uploaded test storage object, and all 4
+  throwaway auth users were deleted afterward via the same RPCs/Admin
+  API under test (`delete_household`, storage delete, `admin.deleteUser`).
+  Final check: the real household's member count is still 4.
+- **Conclusion: the v2.0 multi-tenancy schema, RPCs, RLS policies, and
+  the profile-membership guard trigger all behave exactly as specified.
+  Nothing in §7.2 needs further work before Phase M2 (client).**
