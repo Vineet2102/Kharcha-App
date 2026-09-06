@@ -19,10 +19,7 @@ class DiagnosticsScreen extends ConsumerWidget {
   Future<void> _shareLogs(BuildContext context) async {
     final dir = await getTemporaryDirectory();
     final file = File(p.join(dir.path, 'kharcha_logs.txt'));
-    await file.writeAsString(
-      AppLogger.instance.exportAsText(),
-      flush: true,
-    );
+    await file.writeAsString(AppLogger.instance.exportAsText(), flush: true);
     await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
@@ -77,13 +74,11 @@ class DiagnosticsScreen extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           TextButton(
-                            onPressed: () =>
-                                db.outboxDao.retry(entry.id),
+                            onPressed: () => db.outboxDao.retry(entry.id),
                             child: const Text('Retry'),
                           ),
                           TextButton(
-                            onPressed: () =>
-                                db.outboxDao.remove(entry.id),
+                            onPressed: () => db.outboxDao.remove(entry.id),
                             child: const Text('Discard'),
                           ),
                         ],
@@ -113,9 +108,8 @@ class _SectionHeader extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
     child: Text(
       title,
-      style: Theme.of(
-        context,
-      ).textTheme.labelLarge?.copyWith(color: Theme.of(context).colorScheme.primary),
+      style: Theme.of(context).textTheme.labelLarge
+          ?.copyWith(color: Theme.of(context).colorScheme.primary),
     ),
   );
 }
@@ -178,9 +172,11 @@ class _LogTile extends StatelessWidget {
         entry.message,
         style: TextStyle(color: _colourFor(context, entry.level)),
       ),
-      subtitle: Text(entry.error == null
-          ? entry.timestamp.toLocal().toString()
-          : '${entry.timestamp.toLocal()} — ${entry.error}'),
+      subtitle: Text(
+        entry.error == null
+            ? entry.timestamp.toLocal().toString()
+            : '${entry.timestamp.toLocal()} — ${entry.error}',
+      ),
     );
   }
 }

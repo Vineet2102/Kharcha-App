@@ -282,27 +282,41 @@ void main() {
   });
 
   group('watchMonthlyTrend (T-11.1)', () {
-    test('returns exactly [months] entries, zero-filled where there is no data', () async {
-      await seed();
-      final totals = await db.reportDao
-          .watchMonthlyTrend(householdId: 'h1', endMonth: september, months: 12)
-          .first;
-      expect(totals, hasLength(12));
-      expect(totals.first.month, DateTime.utc(2025, 10));
-      expect(totals.last.month, september);
-    });
+    test(
+      'returns exactly [months] entries, zero-filled where there is no data',
+      () async {
+        await seed();
+        final totals = await db.reportDao
+            .watchMonthlyTrend(
+              householdId: 'h1',
+              endMonth: september,
+              months: 12,
+            )
+            .first;
+        expect(totals, hasLength(12));
+        expect(totals.first.month, DateTime.utc(2025, 10));
+        expect(totals.last.month, september);
+      },
+    );
 
-    test('the current and previous month reconcile with the plain totals', () async {
-      await seed();
-      final totals = await db.reportDao
-          .watchMonthlyTrend(householdId: 'h1', endMonth: september, months: 12)
-          .first;
-      final byMonth = {for (final t in totals) t.month: t};
-      expect(byMonth[september]!.expensePaise, 10000 + 5000 + 20000 + 3000);
-      expect(byMonth[september]!.incomePaise, 50000);
-      expect(byMonth[DateTime.utc(2026, 8)]!.expensePaise, 999999);
-      expect(byMonth[DateTime.utc(2026, 8)]!.incomePaise, 999);
-    });
+    test(
+      'the current and previous month reconcile with the plain totals',
+      () async {
+        await seed();
+        final totals = await db.reportDao
+            .watchMonthlyTrend(
+              householdId: 'h1',
+              endMonth: september,
+              months: 12,
+            )
+            .first;
+        final byMonth = {for (final t in totals) t.month: t};
+        expect(byMonth[september]!.expensePaise, 10000 + 5000 + 20000 + 3000);
+        expect(byMonth[september]!.incomePaise, 50000);
+        expect(byMonth[DateTime.utc(2026, 8)]!.expensePaise, 999999);
+        expect(byMonth[DateTime.utc(2026, 8)]!.incomePaise, 999);
+      },
+    );
 
     test('a month with no rows at all is zero, not missing', () async {
       await seed();
@@ -326,34 +340,28 @@ void main() {
             months: 2,
           )
           .first;
-      expect(
-        totals.map((t) => (t.month, t.userId, t.amountPaise)).toSet(),
-        {
-          (DateTime.utc(2026, 8), 'u1', 999999),
-          (september, 'u1', 15000),
-          (september, 'u2', 23000),
-        },
-      );
-    },
-  );
-
-  test(
-    'watchCategoryMonthlyTrend groups by month and category, excluding uncategorised',
-    () async {
-      await seed();
-      final totals = await db.reportDao
-          .watchCategoryMonthlyTrend(
-            householdId: 'h1',
-            endMonth: september,
-            months: 1,
-          )
-          .first;
-      expect(totals.map((t) => (t.month, t.categoryId, t.amountPaise)).toSet(), {
-        (september, 'c1', 30000),
-        (september, 'c2', 5000),
+      expect(totals.map((t) => (t.month, t.userId, t.amountPaise)).toSet(), {
+        (DateTime.utc(2026, 8), 'u1', 999999),
+        (september, 'u1', 15000),
+        (september, 'u2', 23000),
       });
     },
   );
+
+  test('watchCategoryMonthlyTrend groups by month and category, excluding uncategorised', () async {
+    await seed();
+    final totals = await db.reportDao
+        .watchCategoryMonthlyTrend(
+          householdId: 'h1',
+          endMonth: september,
+          months: 1,
+        )
+        .first;
+    expect(totals.map((t) => (t.month, t.categoryId, t.amountPaise)).toSet(), {
+      (september, 'c1', 30000),
+      (september, 'c2', 5000),
+    });
+  });
 
   test(
     'watchExpenseByWeekday sums non-deleted expenses per calendar weekday',
@@ -381,16 +389,19 @@ void main() {
     },
   );
 
-  test('watchTopMerchants groups by merchant, excluding blank merchants', () async {
-    await seed();
-    final totals = await db.reportDao
-        .watchTopMerchants(householdId: 'h1', start: september, end: october)
-        .first;
-    expect(totals.map((g) => (g.key, g.amountPaise)).toList(), [
-      ('Reliance Fresh', 30000),
-      ('Cafe Coffee Day', 5000),
-    ]);
-  });
+  test(
+    'watchTopMerchants groups by merchant, excluding blank merchants',
+    () async {
+      await seed();
+      final totals = await db.reportDao
+          .watchTopMerchants(householdId: 'h1', start: september, end: october)
+          .first;
+      expect(totals.map((g) => (g.key, g.amountPaise)).toList(), [
+        ('Reliance Fresh', 30000),
+        ('Cafe Coffee Day', 5000),
+      ]);
+    },
+  );
 
   test('watchTopMerchants respects limit', () async {
     await seed();

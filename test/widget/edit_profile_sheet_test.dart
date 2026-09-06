@@ -26,7 +26,12 @@ void main() {
     when(() => client.auth).thenReturn(auth);
     db = AppDatabase.forTesting(NativeDatabase.memory());
     await seedHousehold(db);
-    await seedProfile(db, id: 'u1', householdId: AppConstants.seedHouseholdId, displayName: 'Vineet');
+    await seedProfile(
+      db,
+      id: 'u1',
+      householdId: AppConstants.seedHouseholdId,
+      displayName: 'Vineet',
+    );
   });
 
   tearDown(() => db.close());
@@ -103,9 +108,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('an empty name is rejected client-side (T-14.2)', (
-    tester,
-  ) async {
+  testWidgets('an empty name is rejected client-side (T-14.2)', (tester) async {
     await pumpSheet(tester);
 
     await tester.enterText(find.byType(TextField), '');

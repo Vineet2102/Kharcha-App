@@ -154,14 +154,15 @@ class OutboxDao extends DatabaseAccessor<AppDatabase> with _$OutboxDaoMixin {
   /// actually removed (false means it was already picked up/pushed, or
   /// never existed, and the caller must fall back to a real delete instead).
   Future<bool> removePendingUpsert(String entity, String entityId) async {
-    final count = await (delete(outboxEntries)..where(
-          (t) =>
-              t.entity.equals(entity) &
-              t.entityId.equals(entityId) &
-              t.op.equals('upsert') &
-              t.status.equals('pending'),
-        ))
-        .go();
+    final count =
+        await (delete(outboxEntries)..where(
+              (t) =>
+                  t.entity.equals(entity) &
+                  t.entityId.equals(entityId) &
+                  t.op.equals('upsert') &
+                  t.status.equals('pending'),
+            ))
+            .go();
     return count > 0;
   }
 }

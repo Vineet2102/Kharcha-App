@@ -139,9 +139,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (failure != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(failure!.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure!.message)));
       return;
     }
     await SharePlus.instance.share(
@@ -161,9 +160,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
     } else {
       final failure = result.failureOrNull;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(failure?.message ?? 'Something went wrong.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure?.message ?? 'Something went wrong.')),
+      );
     }
   }
 
@@ -226,10 +225,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                _rangeLabel,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(_rangeLabel, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 20),
               if (profiles.isNotEmpty) ...[
                 Text('Members', style: Theme.of(context).textTheme.labelLarge),
@@ -280,7 +276,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               SegmentedButton<_ExportFormat>(
                 segments: const [
                   ButtonSegment(value: _ExportFormat.csv, label: Text('CSV')),
-                  ButtonSegment(value: _ExportFormat.pdf, label: Text('PDF report')),
+                  ButtonSegment(
+                    value: _ExportFormat.pdf,
+                    label: Text('PDF report'),
+                  ),
                 ],
                 selected: {_format},
                 onSelectionChanged: (s) => setState(() => _format = s.first),

@@ -46,29 +46,29 @@ void main() {
     },
   );
 
-  test('updateColourHex writes the row and enqueues an outbox upsert', () async {
-    await repo.updateColourHex('u1', '#FF5722');
-
-    final row = await db.profileDao.findById('u1');
-    expect(row!.colourHex, '#FF5722');
-
-    final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
-    expect(outbox, hasLength(1));
-  });
-
   test(
-    'setActive is callable on another member\'s id (admin toggling, spec '
-    'T-14.3) and enqueues an outbox upsert',
+    'updateColourHex writes the row and enqueues an outbox upsert',
     () async {
-      await repo.setActive('u1', false);
+      await repo.updateColourHex('u1', '#FF5722');
 
       final row = await db.profileDao.findById('u1');
-      expect(row!.isActive, isFalse);
+      expect(row!.colourHex, '#FF5722');
 
       final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
       expect(outbox, hasLength(1));
     },
   );
+
+  test('setActive is callable on another member\'s id (admin toggling, spec '
+      'T-14.3) and enqueues an outbox upsert', () async {
+    await repo.setActive('u1', false);
+
+    final row = await db.profileDao.findById('u1');
+    expect(row!.isActive, isFalse);
+
+    final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
+    expect(outbox, hasLength(1));
+  });
 
   test('a write on an unknown id is a no-op', () async {
     await repo.setActive('missing', false);

@@ -56,7 +56,9 @@ class _ExpenseFilterSheetState extends State<_ExpenseFilterSheet> {
   late DateTime? _endDate = widget.initial.endDate;
   late final Set<String> _memberIds = {...widget.initial.memberIds};
   late final Set<String> _categoryIds = {...widget.initial.categoryIds};
-  late final Set<String> _paymentMethodIds = {...widget.initial.paymentMethodIds};
+  late final Set<String> _paymentMethodIds = {
+    ...widget.initial.paymentMethodIds,
+  };
   late final _minController = TextEditingController(
     text: widget.initial.minAmountPaise == null
         ? ''
@@ -209,7 +211,10 @@ class _ExpenseFilterSheetState extends State<_ExpenseFilterSheet> {
               children: [
                 for (final method in widget.methods)
                   FilterChip(
-                    avatar: Icon(iconForPaymentMethodType(method.type), size: 18),
+                    avatar: Icon(
+                      iconForPaymentMethodType(method.type),
+                      size: 18,
+                    ),
                     label: Text(method.name),
                     selected: _paymentMethodIds.contains(method.id),
                     onSelected: (selected) => setState(() {
@@ -221,7 +226,10 @@ class _ExpenseFilterSheetState extends State<_ExpenseFilterSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            Text('Amount range (₹)', style: Theme.of(context).textTheme.labelLarge),
+            Text(
+              'Amount range (₹)',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -265,7 +273,10 @@ class _ExpenseFilterSheetState extends State<_ExpenseFilterSheet> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!.toLocal(), end: _endDate!.toLocal())
+          ? DateTimeRange(
+              start: _startDate!.toLocal(),
+              end: _endDate!.toLocal(),
+            )
           : null,
     );
     if (range == null) return;

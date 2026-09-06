@@ -193,7 +193,8 @@ class NotificationScheduler {
       body: "Some expenses haven't synced. Open the app on Wi-Fi.",
       channelId: 'sync_stuck',
       channelName: 'Sync issues',
-      channelDescription: 'Warns when changes have been waiting to sync for a while',
+      channelDescription:
+          'Warns when changes have been waiting to sync for a while',
       payload: AppRoutes.diagnostics,
     );
     await prefs.setInt(key, now.millisecondsSinceEpoch);

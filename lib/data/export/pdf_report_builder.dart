@@ -134,7 +134,10 @@ pw.Widget _summaryBlock(int expensePaise, int incomePaise, int netPaise) {
 pw.Widget _summaryStat(String label, int paise) => pw.Column(
   crossAxisAlignment: pw.CrossAxisAlignment.start,
   children: [
-    pw.Text(label, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+    pw.Text(
+      label,
+      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+    ),
     pw.SizedBox(height: 2),
     pw.Text(
       Money(paise).format(),
@@ -154,19 +157,38 @@ pw.Widget _breakdownTable(List<PdfBreakdownRow> rows, String labelHeader) {
     headers: [labelHeader, 'Amount', '%'],
     data: [
       for (final r in rows)
-        [r.label, Money(r.amountPaise).format(), '${r.pct.toStringAsFixed(1)}%'],
+        [
+          r.label,
+          Money(r.amountPaise).format(),
+          '${r.pct.toStringAsFixed(1)}%',
+        ],
     ],
     headerStyle: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
     cellStyle: const pw.TextStyle(fontSize: 9),
-    cellAlignments: const {1: pw.Alignment.centerRight, 2: pw.Alignment.centerRight},
-    headerAlignments: const {1: pw.Alignment.centerRight, 2: pw.Alignment.centerRight},
+    cellAlignments: const {
+      1: pw.Alignment.centerRight,
+      2: pw.Alignment.centerRight,
+    },
+    headerAlignments: const {
+      1: pw.Alignment.centerRight,
+      2: pw.Alignment.centerRight,
+    },
     cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
   );
 }
 
 pw.Widget _transactionsTable(List<PdfTransactionRow> rows) {
   return pw.TableHelper.fromTextArray(
-    headers: ['Date', 'Time', 'Member', 'Amount', 'Category', 'Payment', 'Merchant', 'Note'],
+    headers: [
+      'Date',
+      'Time',
+      'Member',
+      'Amount',
+      'Category',
+      'Payment',
+      'Merchant',
+      'Note',
+    ],
     data: [
       for (final r in rows)
         [

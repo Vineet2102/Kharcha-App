@@ -40,14 +40,14 @@ class NotificationSettingsController extends _$NotificationSettingsController {
   }
 
   Future<void> setDailyReminderEnabled(bool value) => _apply(
-    (prefs) => prefs.setBool(
-      NotificationSettingsKeys.dailyReminderEnabled,
-      value,
-    ),
+    (prefs) =>
+        prefs.setBool(NotificationSettingsKeys.dailyReminderEnabled, value),
     (s) => s.copyWith(dailyReminderEnabled: value),
   );
 
-  Future<void> setDailyReminderTime(int hour, int minute) => _apply((prefs) async {
+  Future<void> setDailyReminderTime(int hour, int minute) => _apply((
+    prefs,
+  ) async {
     await prefs.setInt(NotificationSettingsKeys.dailyReminderHour, hour);
     await prefs.setInt(NotificationSettingsKeys.dailyReminderMinute, minute);
   }, (s) => s.copyWith(dailyReminderHour: hour, dailyReminderMinute: minute));

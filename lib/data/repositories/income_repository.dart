@@ -115,6 +115,5 @@ IncomeRepository incomeRepository(Ref ref) => IncomeRepository(
 /// All non-deleted income for the household, most recent first — backs the
 /// Income List (T-7.2) and, in the future, Analytics.
 @Riverpod(keepAlive: true)
-Stream<List<domain.Income>> householdIncomes(Ref ref) => ref
-    .watch(incomeRepositoryProvider)
-    .watchAll(AppConstants.seedHouseholdId);
+Stream<List<domain.Income>> householdIncomes(Ref ref) =>
+    ref.watch(incomeRepositoryProvider).watchAll(AppConstants.seedHouseholdId);

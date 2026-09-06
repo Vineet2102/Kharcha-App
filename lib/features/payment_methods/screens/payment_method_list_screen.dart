@@ -47,7 +47,9 @@ class PaymentMethodListScreen extends ConsumerWidget {
                     final reordered = List<domain.PaymentMethod>.from(active);
                     final moved = reordered.removeAt(oldIndex);
                     reordered.insert(newIndex, moved);
-                    ref.read(paymentMethodRepositoryProvider).reorder(reordered);
+                    ref
+                        .read(paymentMethodRepositoryProvider)
+                        .reorder(reordered);
                   },
                   itemBuilder: (context, index) => _MethodTile(
                     key: ValueKey(active[index].id),
@@ -150,8 +152,9 @@ class _MethodTile extends ConsumerWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    final result =
-        await ref.read(paymentMethodRepositoryProvider).delete(method.id);
+    final result = await ref
+        .read(paymentMethodRepositoryProvider)
+        .delete(method.id);
     if (!context.mounted) return;
     result.fold((_) {}, (failure) {
       final isValidation = failure is ValidationFailure;

@@ -16,22 +16,33 @@ void main() {
   });
   tearDown(() => db.close());
 
-  test('create writes a payment method and enqueues an outbox upsert', () async {
-    await repo.create(householdId: 'h1', name: 'HDFC UPI', type: PayMethodType.upi);
+  test(
+    'create writes a payment method and enqueues an outbox upsert',
+    () async {
+      await repo.create(
+        householdId: 'h1',
+        name: 'HDFC UPI',
+        type: PayMethodType.upi,
+      );
 
-    final methods = await db.paymentMethodDao.watchAll('h1').first;
-    expect(methods, hasLength(1));
-    expect(methods.single.name, 'HDFC UPI');
+      final methods = await db.paymentMethodDao.watchAll('h1').first;
+      expect(methods, hasLength(1));
+      expect(methods.single.name, 'HDFC UPI');
 
-    final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
-    expect(outbox.single.entity, 'payment_method');
-    expect(outbox.single.op, 'upsert');
-  });
+      final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
+      expect(outbox.single.entity, 'payment_method');
+      expect(outbox.single.op, 'upsert');
+    },
+  );
 
   test(
     'delete is blocked while a non-deleted expense uses the payment method',
     () async {
-      await repo.create(householdId: 'h1', name: 'Cash', type: PayMethodType.cash);
+      await repo.create(
+        householdId: 'h1',
+        name: 'Cash',
+        type: PayMethodType.cash,
+      );
       final id = (await db.paymentMethodDao.watchAll('h1').first).single.id;
       final now = DateTime.utc(2026, 9, 1);
       await db.expenseDao.upsert(
@@ -56,7 +67,11 @@ void main() {
   );
 
   test('delete succeeds and soft-deletes once unused', () async {
-    await repo.create(householdId: 'h1', name: 'Cash', type: PayMethodType.cash);
+    await repo.create(
+      householdId: 'h1',
+      name: 'Cash',
+      type: PayMethodType.cash,
+    );
     final id = (await db.paymentMethodDao.watchAll('h1').first).single.id;
 
     final result = await repo.delete(id);

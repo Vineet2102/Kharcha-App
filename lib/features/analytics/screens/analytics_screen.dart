@@ -150,10 +150,8 @@ class _MonthlyTrendChart extends ConsumerWidget {
                         showTitles: true,
                         reservedSize: 48,
                         getTitlesWidget: (value, meta) => Text(
-                          Money(value.round()).format(
-                            compact: true,
-                            withSymbol: false,
-                          ),
+                          Money(value.round())
+                              .format(compact: true, withSymbol: false),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -175,9 +173,9 @@ class _MonthlyTrendChart extends ConsumerWidget {
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              AppTime.monthLabelShort(
-                                totals[i].month,
-                              ).split(' ').first,
+                              AppTime.monthLabelShort(totals[i].month)
+                                  .split(' ')
+                                  .first,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           );
@@ -200,7 +198,10 @@ class _MonthlyTrendChart extends ConsumerWidget {
                     LineChartBarData(
                       spots: [
                         for (var i = 0; i < totals.length; i++)
-                          FlSpot(i.toDouble(), totals[i].expensePaise.toDouble()),
+                          FlSpot(
+                            i.toDouble(),
+                            totals[i].expensePaise.toDouble(),
+                          ),
                       ],
                       color: colorScheme.error,
                       barWidth: 2.5,
@@ -210,7 +211,10 @@ class _MonthlyTrendChart extends ConsumerWidget {
                     LineChartBarData(
                       spots: [
                         for (var i = 0; i < totals.length; i++)
-                          FlSpot(i.toDouble(), totals[i].incomePaise.toDouble()),
+                          FlSpot(
+                            i.toDouble(),
+                            totals[i].incomePaise.toDouble(),
+                          ),
                       ],
                       color: incomeColor,
                       barWidth: 2.5,
@@ -357,7 +361,9 @@ class _MemberComparisonChart extends ConsumerWidget {
           for (var i = 0; i < _months; i++)
             AppTime.monthAfter(endMonth, -(_months - 1) + i),
         ];
-        final byKey = {for (final r in rows) (r.month, r.userId): r.amountPaise};
+        final byKey = {
+          for (final r in rows) (r.month, r.userId): r.amountPaise,
+        };
         final activeProfiles = profiles
             .where((p) => rows.any((r) => r.userId == p.id))
             .toList();
@@ -385,10 +391,8 @@ class _MemberComparisonChart extends ConsumerWidget {
                         showTitles: true,
                         reservedSize: 48,
                         getTitlesWidget: (value, meta) => Text(
-                          Money(value.round()).format(
-                            compact: true,
-                            withSymbol: false,
-                          ),
+                          Money(value.round())
+                              .format(compact: true, withSymbol: false),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -405,9 +409,9 @@ class _MemberComparisonChart extends ConsumerWidget {
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
-                              AppTime.monthLabelShort(
-                                months[i],
-                              ).split(' ').first,
+                              AppTime.monthLabelShort(months[i])
+                                  .split(' ')
+                                  .first,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           );
@@ -508,7 +512,9 @@ class _PaymentMethodSplit extends ConsumerWidget {
                       child: LinearProgressIndicator(
                         value: grandTotal == 0
                             ? 0
-                            : (g.amountPaise / grandTotal).clamp(0, 1).toDouble(),
+                            : (g.amountPaise / grandTotal)
+                                  .clamp(0, 1)
+                                  .toDouble(),
                         minHeight: 8,
                       ),
                     ),
@@ -547,10 +553,16 @@ class _DayOfWeekChart extends ConsumerWidget {
         }
 
         final occurrences = <int, int>{for (var w = 1; w <= 7; w++) w: 0};
-        for (var d = monthStart; d.isBefore(monthEnd); d = d.add(const Duration(days: 1))) {
+        for (
+          var d = monthStart;
+          d.isBefore(monthEnd);
+          d = d.add(const Duration(days: 1))
+        ) {
           occurrences[d.weekday] = (occurrences[d.weekday] ?? 0) + 1;
         }
-        final totalByWeekday = {for (final t in totals) t.weekday: t.totalPaise};
+        final totalByWeekday = {
+          for (final t in totals) t.weekday: t.totalPaise,
+        };
         final averages = <int, int>{
           for (var w = 1; w <= 7; w++)
             w: occurrences[w]! == 0
@@ -574,7 +586,8 @@ class _DayOfWeekChart extends ConsumerWidget {
                     showTitles: true,
                     reservedSize: 48,
                     getTitlesWidget: (value, meta) => Text(
-                      Money(value.round()).format(compact: true, withSymbol: false),
+                      Money(value.round())
+                          .format(compact: true, withSymbol: false),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -735,15 +748,17 @@ class _MonthOverMonthTable extends ConsumerWidget {
                     for (final m in months)
                       DataCell(
                         Text(
-                          Money(byKey[(m, categoryId)] ?? 0).format(
-                            compact: true,
-                          ),
+                          Money(byKey[(m, categoryId)] ?? 0)
+                              .format(compact: true),
                         ),
                       ),
-                    DataCell(_DeltaCell(
-                      previous: byKey[(months[months.length - 2], categoryId)] ?? 0,
-                      current: byKey[(months.last, categoryId)] ?? 0,
-                    )),
+                    DataCell(
+                      _DeltaCell(
+                        previous:
+                            byKey[(months[months.length - 2], categoryId)] ?? 0,
+                        current: byKey[(months.last, categoryId)] ?? 0,
+                      ),
+                    ),
                   ],
                 ),
             ],

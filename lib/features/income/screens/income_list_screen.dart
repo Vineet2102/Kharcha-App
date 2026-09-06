@@ -57,7 +57,10 @@ class IncomeListScreen extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Total', style: Theme.of(context).textTheme.labelLarge),
+                    Text(
+                      'Total',
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
                     Text(
                       total.format(),
                       style: Theme.of(context).textTheme.titleMedium,
@@ -98,7 +101,8 @@ class _DateGroup {
 List<_DateGroup> _groupByDate(List<domain.Income> incomes) {
   final groups = <_DateGroup>[];
   for (final income in incomes) {
-    if (groups.isNotEmpty && groups.last.date.isAtSameMomentAs(income.receivedOn)) {
+    if (groups.isNotEmpty &&
+        groups.last.date.isAtSameMomentAs(income.receivedOn)) {
       groups.last.items.add(income);
     } else {
       groups.add(_DateGroup(income.receivedOn, [income]));
@@ -137,8 +141,14 @@ class _DateGroupSection extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_dateLabel(date), style: Theme.of(context).textTheme.labelLarge),
-              Text(dayTotal.format(), style: Theme.of(context).textTheme.labelLarge),
+              Text(
+                _dateLabel(date),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              Text(
+                dayTotal.format(),
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
             ],
           ),
         ),
@@ -183,9 +193,7 @@ class _IncomeRow extends ConsumerWidget {
 
     return Dismissible(
       key: ValueKey(income.id),
-      direction: canEdit
-          ? DismissDirection.endToStart
-          : DismissDirection.none,
+      direction: canEdit ? DismissDirection.endToStart : DismissDirection.none,
       background: Container(
         color: Theme.of(context).colorScheme.errorContainer,
         alignment: Alignment.centerRight,
@@ -213,9 +221,13 @@ class _IncomeRow extends ConsumerWidget {
       child: ListTile(
         onTap: () => context.push(AppRoutes.incomeDetailPath(income.id)),
         leading: CircleAvatar(
-          backgroundColor: category == null ? null : colourFromHex(category!.colourHex),
+          backgroundColor: category == null
+              ? null
+              : colourFromHex(category!.colourHex),
           foregroundColor: Colors.white,
-          child: Icon(category == null ? Icons.category : iconForKey(category!.iconKey)),
+          child: Icon(
+            category == null ? Icons.category : iconForKey(category!.iconKey),
+          ),
         ),
         title: Text(title),
         subtitle: receiver == null ? null : Text(receiver!.displayName),

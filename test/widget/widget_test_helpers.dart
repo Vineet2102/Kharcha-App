@@ -51,9 +51,8 @@ void stubSignedInAs(MockGoTrueClient auth, String userId) {
     ),
   );
   when(() => auth.currentSession).thenReturn(session);
-  when(
-    () => auth.onAuthStateChange,
-  ).thenAnswer((_) => Stream<AuthState>.empty());
+  when(() => auth.onAuthStateChange)
+      .thenAnswer((_) => Stream<AuthState>.empty());
 }
 
 /// Defaults to [AppConstants.seedHouseholdId] — every household-scoped
@@ -67,7 +66,12 @@ Future<void> seedHousehold(
 }) {
   final now = DateTime.now().toUtc();
   return db.householdDao.upsert(
-    HouseholdsCompanion.insert(id: id, name: name, createdAt: now, updatedAt: now),
+    HouseholdsCompanion.insert(
+      id: id,
+      name: name,
+      createdAt: now,
+      updatedAt: now,
+    ),
   );
 }
 

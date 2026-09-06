@@ -92,10 +92,7 @@ class _PaymentMethodEditorSheetState
             TextField(
               controller: _nameController,
               autofocus: !isEdit,
-              decoration: InputDecoration(
-                labelText: 'Name',
-                errorText: _error,
-              ),
+              decoration: InputDecoration(labelText: 'Name', errorText: _error),
               maxLength: 40,
             ),
             const SizedBox(height: 8),

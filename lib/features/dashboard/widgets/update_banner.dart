@@ -42,8 +42,9 @@ class UpdateBanner extends ConsumerWidget {
             IconButton(
               icon: Icon(Icons.close, color: scheme.onPrimaryContainer),
               tooltip: 'Dismiss',
-              onPressed: () =>
-                  ref.read(updateCheckControllerProvider.notifier).dismissBanner(),
+              onPressed: () => ref
+                  .read(updateCheckControllerProvider.notifier)
+                  .dismissBanner(),
             ),
           ],
         ),

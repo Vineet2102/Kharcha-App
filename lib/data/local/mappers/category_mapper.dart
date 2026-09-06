@@ -40,7 +40,9 @@ extension CategoryDomainMapper on domain.Category {
     updatedAt: Value(updatedAt),
     deletedAt: Value(deletedAt),
     isDirty: Value(dirty),
-    localUpdatedAt: dirty ? Value(DateTime.now().toUtc()) : const Value.absent(),
+    localUpdatedAt: dirty
+        ? Value(DateTime.now().toUtc())
+        : const Value.absent(),
     syncStatus: Value(dirty ? 'pending' : 'synced'),
     baseUpdatedAt: baseUpdatedAt == null
         ? const Value.absent()

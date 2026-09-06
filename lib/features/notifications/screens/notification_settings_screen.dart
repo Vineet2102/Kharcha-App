@@ -29,7 +29,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(notificationSettingsControllerProvider);
-    final controller = ref.read(notificationSettingsControllerProvider.notifier);
+    final controller = ref.read(
+      notificationSettingsControllerProvider.notifier,
+    );
     final reminderTime = TimeOfDay(
       hour: settings.dailyReminderHour,
       minute: settings.dailyReminderMinute,
@@ -76,7 +78,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
           ),
           SwitchListTile(
             title: const Text('Recurring due'),
-            subtitle: const Text('Manual recurring items waiting for confirmation'),
+            subtitle: const Text(
+              'Manual recurring items waiting for confirmation',
+            ),
             value: settings.recurringDueEnabled,
             onChanged: (v) => controller.setRecurringDueEnabled(v),
           ),

@@ -629,7 +629,8 @@ class ExpenseSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.expenseDao.upsert(
-      domain.Expense.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
+      domain.Expense.fromJson(json)
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -715,7 +716,8 @@ class IncomeSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.incomeDao.upsert(
-      domain.Income.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
+      domain.Income.fromJson(json)
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 
@@ -801,7 +803,8 @@ class BudgetSyncAdapter extends EntitySyncAdapter {
       );
     }
     await db.budgetDao.upsert(
-      domain.Budget.fromJson(json).toCompanion(baseUpdatedAt: json['updated_at'] as String),
+      domain.Budget.fromJson(json)
+          .toCompanion(baseUpdatedAt: json['updated_at'] as String),
     );
   }
 

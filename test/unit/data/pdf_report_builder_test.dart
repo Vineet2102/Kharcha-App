@@ -27,51 +27,54 @@ void main() {
     expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
   });
 
-  test('produces a larger PDF when the transaction appendix is included', () async {
-    final withoutAppendix = await buildReportPdf(
-      regularFont: regular,
-      boldFont: bold,
-      householdName: 'Panicker Family',
-      periodLabel: 'September 2026',
-      generatedAt: DateTime.utc(2026, 9, 6, 10, 0),
-      totalExpensePaise: 45000,
-      totalIncomePaise: 5000000,
-      categoryRows: const [
-        PdfBreakdownRow(label: 'Groceries', amountPaise: 45000, pct: 100),
-      ],
-      memberRows: const [
-        PdfBreakdownRow(label: 'Vineet', amountPaise: 45000, pct: 100),
-      ],
-    );
+  test(
+    'produces a larger PDF when the transaction appendix is included',
+    () async {
+      final withoutAppendix = await buildReportPdf(
+        regularFont: regular,
+        boldFont: bold,
+        householdName: 'Panicker Family',
+        periodLabel: 'September 2026',
+        generatedAt: DateTime.utc(2026, 9, 6, 10, 0),
+        totalExpensePaise: 45000,
+        totalIncomePaise: 5000000,
+        categoryRows: const [
+          PdfBreakdownRow(label: 'Groceries', amountPaise: 45000, pct: 100),
+        ],
+        memberRows: const [
+          PdfBreakdownRow(label: 'Vineet', amountPaise: 45000, pct: 100),
+        ],
+      );
 
-    final withAppendix = await buildReportPdf(
-      regularFont: regular,
-      boldFont: bold,
-      householdName: 'Panicker Family',
-      periodLabel: 'September 2026',
-      generatedAt: DateTime.utc(2026, 9, 6, 10, 0),
-      totalExpensePaise: 45000,
-      totalIncomePaise: 5000000,
-      categoryRows: const [
-        PdfBreakdownRow(label: 'Groceries', amountPaise: 45000, pct: 100),
-      ],
-      memberRows: const [
-        PdfBreakdownRow(label: 'Vineet', amountPaise: 45000, pct: 100),
-      ],
-      transactions: const [
-        PdfTransactionRow(
-          date: '2026-09-03',
-          time: '19:42',
-          member: 'Vineet',
-          amountPaise: 45000,
-          category: 'Groceries',
-          paymentMethod: 'UPI',
-          merchant: 'Reliance Fresh',
-          note: 'weekly veg',
-        ),
-      ],
-    );
+      final withAppendix = await buildReportPdf(
+        regularFont: regular,
+        boldFont: bold,
+        householdName: 'Panicker Family',
+        periodLabel: 'September 2026',
+        generatedAt: DateTime.utc(2026, 9, 6, 10, 0),
+        totalExpensePaise: 45000,
+        totalIncomePaise: 5000000,
+        categoryRows: const [
+          PdfBreakdownRow(label: 'Groceries', amountPaise: 45000, pct: 100),
+        ],
+        memberRows: const [
+          PdfBreakdownRow(label: 'Vineet', amountPaise: 45000, pct: 100),
+        ],
+        transactions: const [
+          PdfTransactionRow(
+            date: '2026-09-03',
+            time: '19:42',
+            member: 'Vineet',
+            amountPaise: 45000,
+            category: 'Groceries',
+            paymentMethod: 'UPI',
+            merchant: 'Reliance Fresh',
+            note: 'weekly veg',
+          ),
+        ],
+      );
 
-    expect(withAppendix.length, greaterThan(withoutAppendix.length));
-  });
+      expect(withAppendix.length, greaterThan(withoutAppendix.length));
+    },
+  );
 }

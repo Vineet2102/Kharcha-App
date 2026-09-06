@@ -29,7 +29,8 @@ class CategoryListScreen extends ConsumerWidget {
           : null,
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Could not load categories: $error')),
+        error: (error, _) =>
+            Center(child: Text('Could not load categories: $error')),
         data: (categories) {
           if (categories.isEmpty) {
             return const Center(child: Text('No categories yet.'));
@@ -159,7 +160,9 @@ class _CategoryTile extends ConsumerWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    final result = await ref.read(categoryRepositoryProvider).delete(category.id);
+    final result = await ref
+        .read(categoryRepositoryProvider)
+        .delete(category.id);
     if (!context.mounted) return;
     result.fold((_) {}, (failure) {
       final isValidation = failure is ValidationFailure;

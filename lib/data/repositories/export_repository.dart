@@ -135,16 +135,32 @@ class ExportRepository {
           : endDate.add(const Duration(days: 1));
 
       final totalExpensePaise = await _db.reportDao
-          .watchExpenseTotal(householdId: householdId, start: rangeStart, end: rangeEnd)
+          .watchExpenseTotal(
+            householdId: householdId,
+            start: rangeStart,
+            end: rangeEnd,
+          )
           .first;
       final totalIncomePaise = await _db.reportDao
-          .watchIncomeTotal(householdId: householdId, start: rangeStart, end: rangeEnd)
+          .watchIncomeTotal(
+            householdId: householdId,
+            start: rangeStart,
+            end: rangeEnd,
+          )
           .first;
       final categoryTotals = await _db.reportDao
-          .watchExpenseByCategory(householdId: householdId, start: rangeStart, end: rangeEnd)
+          .watchExpenseByCategory(
+            householdId: householdId,
+            start: rangeStart,
+            end: rangeEnd,
+          )
           .first;
       final memberTotals = await _db.reportDao
-          .watchExpenseByMember(householdId: householdId, start: rangeStart, end: rangeEnd)
+          .watchExpenseByMember(
+            householdId: householdId,
+            start: rangeStart,
+            end: rangeEnd,
+          )
           .first;
 
       final lookups = await _lookups(householdId);
@@ -153,7 +169,9 @@ class ExportRepository {
           PdfBreakdownRow(
             label: lookups.categories[t.key]?.name ?? 'Uncategorised',
             amountPaise: t.amountPaise,
-            pct: totalExpensePaise == 0 ? 0 : t.amountPaise / totalExpensePaise * 100,
+            pct: totalExpensePaise == 0
+                ? 0
+                : t.amountPaise / totalExpensePaise * 100,
           ),
       ];
       final memberRows = [
@@ -161,7 +179,9 @@ class ExportRepository {
           PdfBreakdownRow(
             label: lookups.profiles[t.key]?.displayName ?? 'Unknown',
             amountPaise: t.amountPaise,
-            pct: totalExpensePaise == 0 ? 0 : t.amountPaise / totalExpensePaise * 100,
+            pct: totalExpensePaise == 0
+                ? 0
+                : t.amountPaise / totalExpensePaise * 100,
           ),
       ];
 
@@ -177,8 +197,7 @@ class ExportRepository {
           ),
         );
         transactionRows = [
-          for (final row in expenses)
-            _transactionRow(row.toDomain(), lookups),
+          for (final row in expenses) _transactionRow(row.toDomain(), lookups),
         ];
       }
 
@@ -229,12 +248,16 @@ class ExportRepository {
         'households': [for (final r in households) r.toDomain().toJson()],
         'profiles': [for (final r in profiles) r.toDomain().toJson()],
         'categories': [for (final r in categories) r.toDomain().toJson()],
-        'payment_methods': [for (final r in paymentMethods) r.toDomain().toJson()],
+        'payment_methods': [
+          for (final r in paymentMethods) r.toDomain().toJson(),
+        ],
         'expenses': [for (final r in expenses) r.toDomain().toJson()],
         'incomes': [for (final r in incomes) r.toDomain().toJson()],
         'attachments': [for (final r in attachments) r.toDomain().toJson()],
         'budgets': [for (final r in budgets) r.toDomain().toJson()],
-        'recurring_rules': [for (final r in recurringRules) r.toDomain().toJson()],
+        'recurring_rules': [
+          for (final r in recurringRules) r.toDomain().toJson(),
+        ],
       };
       final bytes = Uint8List.fromList(
         utf8.encode(const JsonEncoder.withIndent('  ').convert(backup)),
@@ -273,7 +296,9 @@ class ExportRepository {
   }
 
   Future<(pw.Font, pw.Font)> _loadReportFonts() async {
-    final regularData = await rootBundle.load('assets/fonts/NotoSans-Regular.ttf');
+    final regularData = await rootBundle.load(
+      'assets/fonts/NotoSans-Regular.ttf',
+    );
     final boldData = await rootBundle.load('assets/fonts/NotoSans-Bold.ttf');
     return (pw.Font.ttf(regularData), pw.Font.ttf(boldData));
   }
@@ -312,7 +337,8 @@ class ExportRepository {
     return '${_dateToken(startDate!)}_to_${_dateToken(endDate!)}';
   }
 
-  String _todayToken() => _dateToken(AppTime.calendarDate(DateTime.now().toUtc()));
+  String _todayToken() =>
+      _dateToken(AppTime.calendarDate(DateTime.now().toUtc()));
 
   String _dateToken(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'

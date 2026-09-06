@@ -77,9 +77,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(syncEngineProvider).sync();
     if (!mounted) return;
     setState(() => _busy = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Sync complete.')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Sync complete.')));
   }
 
   Future<void> _clearCacheAndResync() async {
@@ -109,9 +108,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(syncEngineProvider).sync();
     if (!mounted) return;
     setState(() => _busy = false);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Cache cleared and re-synced.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Cache cleared and re-synced.')),
+    );
   }
 
   Future<void> _checkForUpdates() async {
@@ -121,11 +120,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _busy = false);
     final result = ref.read(updateCheckControllerProvider);
     final message = switch (result) {
-      UpdateAvailable(:final release) => 'Version ${release.versionName} is available.',
+      UpdateAvailable(:final release) =>
+        'Version ${release.versionName} is available.',
       Blocked() => 'An update is required to keep syncing.',
       _ => "You're up to date.",
     };
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -264,9 +265,8 @@ class _SectionHeader extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
     child: Text(
       title,
-      style: Theme.of(
-        context,
-      ).textTheme.labelLarge?.copyWith(color: Theme.of(context).colorScheme.primary),
+      style: Theme.of(context).textTheme.labelLarge
+          ?.copyWith(color: Theme.of(context).colorScheme.primary),
     ),
   );
 }

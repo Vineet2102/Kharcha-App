@@ -37,16 +37,14 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test(
-    'upgrading a real v3 database drops the lossy INTEGER base_updated_at '
-    'and re-adds it as TEXT, resetting every row to null without losing '
-    'any other data',
-    () async {
-      // Build a v3-shaped categories table by hand: the exact columns
-      // Gate 4's fix shipped, with base_updated_at still the lossy
-      // unix-seconds INTEGER this fix replaces.
-      final raw = sqlite3.sqlite3.open(dbPath);
-      raw.execute('''
+  test('upgrading a real v3 database drops the lossy INTEGER base_updated_at '
+      'and re-adds it as TEXT, resetting every row to null without losing '
+      'any other data', () async {
+    // Build a v3-shaped categories table by hand: the exact columns
+    // Gate 4's fix shipped, with base_updated_at still the lossy
+    // unix-seconds INTEGER this fix replaces.
+    final raw = sqlite3.sqlite3.open(dbPath);
+    raw.execute('''
         CREATE TABLE categories (
           id TEXT NOT NULL,
           household_id TEXT NOT NULL,
@@ -66,18 +64,18 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
-      // The other 6 push-capable tables only need enough of the v3 shape
-      // for the migration's ALTER statements to succeed — this test
-      // focuses its data-preservation assertions on categories.
-      for (final table in [
-        'payment_methods',
-        'expenses',
-        'incomes',
-        'budgets',
-        'recurring_rules',
-        'attachments',
-      ]) {
-        raw.execute('''
+    // The other 6 push-capable tables only need enough of the v3 shape
+    // for the migration's ALTER statements to succeed — this test
+    // focuses its data-preservation assertions on categories.
+    for (final table in [
+      'payment_methods',
+      'expenses',
+      'incomes',
+      'budgets',
+      'recurring_rules',
+      'attachments',
+    ]) {
+      raw.execute('''
           CREATE TABLE $table (
             id TEXT NOT NULL PRIMARY KEY,
             updated_at INTEGER NOT NULL,
@@ -85,20 +83,20 @@ void main() {
             base_updated_at INTEGER NULL
           );
         ''');
-      }
-      // `households`/`profiles` didn't gain `base_updated_at` until Phase
-      // 14's v4 -> v5 step (see `migration_v4_to_v5_test.dart`), so at v3
-      // they're still in their original shape, unlike the 6 tables above.
-      for (final table in ['households', 'profiles']) {
-        raw.execute('''
+    }
+    // `households`/`profiles` didn't gain `base_updated_at` until Phase
+    // 14's v4 -> v5 step (see `migration_v4_to_v5_test.dart`), so at v3
+    // they're still in their original shape, unlike the 6 tables above.
+    for (final table in ['households', 'profiles']) {
+      raw.execute('''
           CREATE TABLE $table (
             id TEXT NOT NULL PRIMARY KEY,
             updated_at INTEGER NOT NULL,
             is_dirty INTEGER NOT NULL DEFAULT 0
           );
         ''');
-      }
-      raw.execute('''
+    }
+    raw.execute('''
         CREATE TABLE outbox_entries (
           id TEXT NOT NULL,
           entity TEXT NOT NULL,
@@ -113,38 +111,37 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
-      // A row with a populated (lossy) base_updated_at, exactly what Gate
-      // 4's own backfill would have produced for a clean row.
-      final syncedAt = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
-      raw.execute(
-        'INSERT INTO categories '
-        '(id, household_id, name, created_at, updated_at, is_dirty, base_updated_at) '
-        "VALUES ('clean1', 'hh1', 'Groceries', ?, ?, 0, ?)",
-        [syncedAt, syncedAt, syncedAt],
-      );
-      raw.execute('PRAGMA user_version = 3;');
-      raw.close();
+    // A row with a populated (lossy) base_updated_at, exactly what Gate
+    // 4's own backfill would have produced for a clean row.
+    final syncedAt = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
+    raw.execute(
+      'INSERT INTO categories '
+      '(id, household_id, name, created_at, updated_at, is_dirty, base_updated_at) '
+      "VALUES ('clean1', 'hh1', 'Groceries', ?, ?, 0, ?)",
+      [syncedAt, syncedAt, syncedAt],
+    );
+    raw.execute('PRAGMA user_version = 3;');
+    raw.close();
 
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
-      final db = AppDatabase();
-      // Any query forces drift to open the file and run onUpgrade.
-      final rows = await db.select(db.categories).get();
-      expect(rows, hasLength(1));
+    PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    final db = AppDatabase();
+    // Any query forces drift to open the file and run onUpgrade.
+    final rows = await db.select(db.categories).get();
+    expect(rows, hasLength(1));
 
-      final row = rows.single;
-      expect(row.name, 'Groceries', reason: 'existing data must survive');
-      expect(
-        row.baseUpdatedAt,
-        isNull,
-        reason:
-            'the old lossy value is discarded, not migrated across — it '
-            'could never CAS-match the server\'s full-precision updated_at '
-            'anyway, so keeping it would just perpetuate the bug this fix '
-            'closes. The next push for this row is unconditional once, '
-            'then self-heals with a precise TEXT base.',
-      );
+    final row = rows.single;
+    expect(row.name, 'Groceries', reason: 'existing data must survive');
+    expect(
+      row.baseUpdatedAt,
+      isNull,
+      reason:
+          'the old lossy value is discarded, not migrated across — it '
+          'could never CAS-match the server\'s full-precision updated_at '
+          'anyway, so keeping it would just perpetuate the bug this fix '
+          'closes. The next push for this row is unconditional once, '
+          'then self-heals with a precise TEXT base.',
+    );
 
-      await db.close();
-    },
-  );
+    await db.close();
+  });
 }

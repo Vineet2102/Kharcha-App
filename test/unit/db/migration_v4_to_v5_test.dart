@@ -38,13 +38,11 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test(
-    'upgrading a real v4 database backfills base_updated_at for a clean '
-    'household/profile row and leaves it null for a still-dirty one, '
-    'without losing any data',
-    () async {
-      final raw = sqlite3.sqlite3.open(dbPath);
-      raw.execute('''
+  test('upgrading a real v4 database backfills base_updated_at for a clean '
+      'household/profile row and leaves it null for a still-dirty one, '
+      'without losing any data', () async {
+    final raw = sqlite3.sqlite3.open(dbPath);
+    raw.execute('''
         CREATE TABLE households (
           id TEXT NOT NULL PRIMARY KEY,
           name TEXT NOT NULL,
@@ -57,7 +55,7 @@ void main() {
           is_dirty INTEGER NOT NULL DEFAULT 0
         );
       ''');
-      raw.execute('''
+    raw.execute('''
         CREATE TABLE profiles (
           id TEXT NOT NULL PRIMARY KEY,
           household_id TEXT NOT NULL,
@@ -72,18 +70,18 @@ void main() {
           is_dirty INTEGER NOT NULL DEFAULT 0
         );
       ''');
-      // The 7 already-push-capable tables only need enough of the v4 shape
-      // for the migration's (no-op, for them) upgrade path to open at all.
-      for (final table in [
-        'categories',
-        'payment_methods',
-        'expenses',
-        'incomes',
-        'budgets',
-        'recurring_rules',
-        'attachments',
-      ]) {
-        raw.execute('''
+    // The 7 already-push-capable tables only need enough of the v4 shape
+    // for the migration's (no-op, for them) upgrade path to open at all.
+    for (final table in [
+      'categories',
+      'payment_methods',
+      'expenses',
+      'incomes',
+      'budgets',
+      'recurring_rules',
+      'attachments',
+    ]) {
+      raw.execute('''
           CREATE TABLE $table (
             id TEXT NOT NULL PRIMARY KEY,
             updated_at INTEGER NOT NULL,
@@ -91,8 +89,8 @@ void main() {
             base_updated_at TEXT NULL
           );
         ''');
-      }
-      raw.execute('''
+    }
+    raw.execute('''
         CREATE TABLE outbox_entries (
           id TEXT NOT NULL,
           entity TEXT NOT NULL,
@@ -107,50 +105,49 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
-      final cleanUpdatedAt =
-          DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
-      raw.execute(
-        'INSERT INTO households (id, name, created_at, updated_at, is_dirty) '
-        "VALUES ('hh1', 'Panicker Family', ?, ?, 0)",
-        [cleanUpdatedAt, cleanUpdatedAt],
-      );
-      final dirtyUpdatedAt =
-          DateTime.utc(2026, 1, 2).millisecondsSinceEpoch ~/ 1000;
-      raw.execute(
-        'INSERT INTO profiles '
-        '(id, household_id, display_name, created_at, updated_at, is_dirty) '
-        "VALUES ('u1', 'hh1', 'Vineet (edited)', ?, ?, 1)",
-        [dirtyUpdatedAt, dirtyUpdatedAt],
-      );
-      raw.execute('PRAGMA user_version = 4;');
-      raw.close();
+    final cleanUpdatedAt =
+        DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
+    raw.execute(
+      'INSERT INTO households (id, name, created_at, updated_at, is_dirty) '
+      "VALUES ('hh1', 'Panicker Family', ?, ?, 0)",
+      [cleanUpdatedAt, cleanUpdatedAt],
+    );
+    final dirtyUpdatedAt =
+        DateTime.utc(2026, 1, 2).millisecondsSinceEpoch ~/ 1000;
+    raw.execute(
+      'INSERT INTO profiles '
+      '(id, household_id, display_name, created_at, updated_at, is_dirty) '
+      "VALUES ('u1', 'hh1', 'Vineet (edited)', ?, ?, 1)",
+      [dirtyUpdatedAt, dirtyUpdatedAt],
+    );
+    raw.execute('PRAGMA user_version = 4;');
+    raw.close();
 
-      PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
-      final db = AppDatabase();
-      // Any query forces drift to open the file and run onUpgrade.
-      final households = await db.select(db.households).get();
-      final profiles = await db.select(db.profiles).get();
-      expect(households, hasLength(1));
-      expect(profiles, hasLength(1));
+    PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    final db = AppDatabase();
+    // Any query forces drift to open the file and run onUpgrade.
+    final households = await db.select(db.households).get();
+    final profiles = await db.select(db.profiles).get();
+    expect(households, hasLength(1));
+    expect(profiles, hasLength(1));
 
-      expect(households.single.name, 'Panicker Family');
-      expect(
-        households.single.baseUpdatedAt,
-        isNotNull,
-        reason: 'a clean row backfills its base from its own updated_at',
-      );
+    expect(households.single.name, 'Panicker Family');
+    expect(
+      households.single.baseUpdatedAt,
+      isNotNull,
+      reason: 'a clean row backfills its base from its own updated_at',
+    );
 
-      expect(profiles.single.displayName, 'Vineet (edited)');
-      expect(
-        profiles.single.baseUpdatedAt,
-        isNull,
-        reason:
-            "a dirty row's updated_at is its own unpushed edit, not a "
-            'confirmed server value, so the backfill leaves it null — it '
-            'falls back to an unconditional push once, then self-heals',
-      );
+    expect(profiles.single.displayName, 'Vineet (edited)');
+    expect(
+      profiles.single.baseUpdatedAt,
+      isNull,
+      reason:
+          "a dirty row's updated_at is its own unpushed edit, not a "
+          'confirmed server value, so the backfill leaves it null — it '
+          'falls back to an unconditional push once, then self-heals',
+    );
 
-      await db.close();
-    },
-  );
+    await db.close();
+  });
 }

@@ -112,9 +112,8 @@ void main() {
 
   group('updatePassword', () {
     test('returns Ok on success (T-14.2)', () async {
-      when(
-        () => auth.updateUser(any()),
-      ).thenAnswer((_) async => UserResponse.fromJson({'id': 'u1'}));
+      when(() => auth.updateUser(any()))
+          .thenAnswer((_) async => UserResponse.fromJson({'id': 'u1'}));
       final result = await repository.updatePassword('newSecret123');
       expect(result.isOk, isTrue);
       verify(() => auth.updateUser(any())).called(1);

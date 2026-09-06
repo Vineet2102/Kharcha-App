@@ -69,45 +69,43 @@ void main() {
     },
   );
 
-  testWidgets(
-    'an admin toggling a member off calls setActive (T-14.3)',
-    (tester) async {
-      stubSignedInAs(auth, 'u1');
+  testWidgets('an admin toggling a member off calls setActive (T-14.3)', (
+    tester,
+  ) async {
+    stubSignedInAs(auth, 'u1');
 
-      await tester.pumpWidget(harness());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(harness());
+    await tester.pumpAndSettle();
 
-      final rupeshSwitch = find.descendant(
-        of: find.ancestor(
-          of: find.text('Rupesh'),
-          matching: find.byType(ListTile),
-        ),
-        matching: find.byType(Switch),
-      );
-      await tester.tap(rupeshSwitch);
-      await tester.pumpAndSettle();
+    final rupeshSwitch = find.descendant(
+      of: find.ancestor(
+        of: find.text('Rupesh'),
+        matching: find.byType(ListTile),
+      ),
+      matching: find.byType(Switch),
+    );
+    await tester.tap(rupeshSwitch);
+    await tester.pumpAndSettle();
 
-      final row = await db.profileDao.findById('u2');
-      expect(row!.isActive, isFalse);
+    final row = await db.profileDao.findById('u2');
+    expect(row!.isActive, isFalse);
 
-      await disposeAndFlush(tester);
-    },
-  );
+    await disposeAndFlush(tester);
+  });
 
-  testWidgets(
-    'a member sees the same list read-only, no switches (T-14.3)',
-    (tester) async {
-      stubSignedInAs(auth, 'u2');
+  testWidgets('a member sees the same list read-only, no switches (T-14.3)', (
+    tester,
+  ) async {
+    stubSignedInAs(auth, 'u2');
 
-      await tester.pumpWidget(harness());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(harness());
+    await tester.pumpAndSettle();
 
-      expect(find.text('Vineet'), findsOneWidget);
-      expect(find.text('Rupesh'), findsOneWidget);
-      expect(find.byType(Switch), findsNothing);
-      expect(find.text('Active'), findsNWidgets(2));
+    expect(find.text('Vineet'), findsOneWidget);
+    expect(find.text('Rupesh'), findsOneWidget);
+    expect(find.byType(Switch), findsNothing);
+    expect(find.text('Active'), findsNWidgets(2));
 
-      await disposeAndFlush(tester);
-    },
-  );
+    await disposeAndFlush(tester);
+  });
 }

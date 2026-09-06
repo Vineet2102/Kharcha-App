@@ -21,8 +21,7 @@ class _ChangePasswordDialog extends ConsumerStatefulWidget {
       _ChangePasswordDialogState();
 }
 
-class _ChangePasswordDialogState
-    extends ConsumerState<_ChangePasswordDialog> {
+class _ChangePasswordDialogState extends ConsumerState<_ChangePasswordDialog> {
   final _newController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _saving = false;
@@ -56,9 +55,8 @@ class _ChangePasswordDialogState
     result.fold(
       (_) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password changed.')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Password changed.')));
       },
       (failure) => setState(() {
         _saving = false;

@@ -38,7 +38,8 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
   );
   late CategoryKind _kind = widget.existing?.kind ?? CategoryKind.expense;
   late String _iconKey = widget.existing?.iconKey ?? 'category';
-  late String _colourHex = widget.existing?.colourHex ?? categoryColourPalette.last;
+  late String _colourHex =
+      widget.existing?.colourHex ?? categoryColourPalette.last;
   bool _saving = false;
   String? _error;
 
@@ -102,10 +103,7 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
             TextField(
               controller: _nameController,
               autofocus: !isEdit,
-              decoration: InputDecoration(
-                labelText: 'Name',
-                errorText: _error,
-              ),
+              decoration: InputDecoration(labelText: 'Name', errorText: _error),
               maxLength: 40,
             ),
             const SizedBox(height: 8),

@@ -38,28 +38,27 @@ void main() {
     child: const MaterialApp(home: DiagnosticsScreen()),
   );
 
-  testWidgets(
-    'shows the sync queue, failed items, and recent logs (T-14.5)',
-    (tester) async {
-      await enqueue('pending1', entity: 'expense');
-      await enqueue('failed1', entity: 'category');
-      await db.outboxDao.markFailed('failed1', 'RLS denied the write');
-      AppLogger.instance.info('Sync cycle completed');
+  testWidgets('shows the sync queue, failed items, and recent logs (T-14.5)', (
+    tester,
+  ) async {
+    await enqueue('pending1', entity: 'expense');
+    await enqueue('failed1', entity: 'category');
+    await db.outboxDao.markFailed('failed1', 'RLS denied the write');
+    AppLogger.instance.info('Sync cycle completed');
 
-      await tester.pumpWidget(harness());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(harness());
+    await tester.pumpAndSettle();
 
-      expect(find.text('expense · upsert'), findsOneWidget);
-      expect(find.text('category · upsert'), findsOneWidget);
-      expect(find.text('RLS denied the write'), findsOneWidget);
-      expect(find.text('Sync cycle completed'), findsOneWidget);
-      expect(find.text('Nothing waiting to sync.'), findsNothing);
-      expect(find.text('No failed items.'), findsNothing);
+    expect(find.text('expense · upsert'), findsOneWidget);
+    expect(find.text('category · upsert'), findsOneWidget);
+    expect(find.text('RLS denied the write'), findsOneWidget);
+    expect(find.text('Sync cycle completed'), findsOneWidget);
+    expect(find.text('Nothing waiting to sync.'), findsNothing);
+    expect(find.text('No failed items.'), findsNothing);
 
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(milliseconds: 1));
-    },
-  );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 
   testWidgets('shows empty-state text when there is nothing to show', (
     tester,

@@ -24,8 +24,7 @@ class IncomeDetailScreen extends ConsumerStatefulWidget {
   final String? id;
 
   @override
-  ConsumerState<IncomeDetailScreen> createState() =>
-      _IncomeDetailScreenState();
+  ConsumerState<IncomeDetailScreen> createState() => _IncomeDetailScreenState();
 }
 
 class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
@@ -93,7 +92,9 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.id == null ? 'Add income' : 'Income')),
+        appBar: AppBar(
+          title: Text(widget.id == null ? 'Add income' : 'Income'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -356,8 +357,13 @@ class _DatePicker extends StatelessWidget {
           label: const Text('Today'),
           selected: isToday,
           onSelected: (_) => onChanged(
-            DateTime(now.year, now.month, now.day, local.hour, local.minute)
-                .toUtc(),
+            DateTime(
+              now.year,
+              now.month,
+              now.day,
+              local.hour,
+              local.minute,
+            ).toUtc(),
           ),
         ),
         OutlinedButton.icon(
@@ -379,8 +385,13 @@ class _DatePicker extends StatelessWidget {
     );
     if (date == null) return;
     onChanged(
-      DateTime(date.year, date.month, date.day, local.hour, local.minute)
-          .toUtc(),
+      DateTime(
+        date.year,
+        date.month,
+        date.day,
+        local.hour,
+        local.minute,
+      ).toUtc(),
     );
   }
 }

@@ -114,9 +114,7 @@ void main() {
     await disposeAndFlush(tester);
   });
 
-  testWidgets('an admin can edit the household name (T-14.1)', (
-    tester,
-  ) async {
+  testWidgets('an admin can edit the household name (T-14.1)', (tester) async {
     await seedProfile(
       db,
       id: 'u1',
@@ -198,9 +196,7 @@ void main() {
     await disposeAndFlush(tester);
   });
 
-  testWidgets('Sync now shows a completion snackbar (T-14.4)', (
-    tester,
-  ) async {
+  testWidgets('Sync now shows a completion snackbar (T-14.4)', (tester) async {
     await seedProfile(
       db,
       id: 'u1',
@@ -240,7 +236,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Cache cleared and re-synced.'), findsOneWidget);
-      expect(await db.householdDao.findById(AppConstants.seedHouseholdId), isNull);
+      expect(
+        await db.householdDao.findById(AppConstants.seedHouseholdId),
+        isNull,
+      );
 
       await disposeAndFlush(tester);
     },

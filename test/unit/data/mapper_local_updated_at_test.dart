@@ -101,25 +101,22 @@ void main() {
     expect(budget.toCompanion(dirty: false).localUpdatedAt.present, isFalse);
   });
 
-  test(
-    'RecurringRule.toCompanion stamps local_updated_at only when dirty',
-    () {
-      final rule = domain.RecurringRule(
-        id: 'r1',
-        householdId: 'h1',
-        userId: 'u1',
-        title: 'Netflix',
-        amountPaise: 100,
-        frequency: RecurFrequency.monthly,
-        startDate: now,
-        nextDueDate: now,
-        createdAt: now,
-        updatedAt: now,
-      );
-      expect(rule.toCompanion(dirty: true).localUpdatedAt.present, isTrue);
-      expect(rule.toCompanion(dirty: false).localUpdatedAt.present, isFalse);
-    },
-  );
+  test('RecurringRule.toCompanion stamps local_updated_at only when dirty', () {
+    final rule = domain.RecurringRule(
+      id: 'r1',
+      householdId: 'h1',
+      userId: 'u1',
+      title: 'Netflix',
+      amountPaise: 100,
+      frequency: RecurFrequency.monthly,
+      startDate: now,
+      nextDueDate: now,
+      createdAt: now,
+      updatedAt: now,
+    );
+    expect(rule.toCompanion(dirty: true).localUpdatedAt.present, isTrue);
+    expect(rule.toCompanion(dirty: false).localUpdatedAt.present, isFalse);
+  });
 
   test('Attachment.toCompanion stamps local_updated_at only when dirty', () {
     final attachment = domain.Attachment(

@@ -43,12 +43,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('rejects a password under 6 characters (T-14.2)', (
-    tester,
-  ) async {
+  testWidgets('rejects a password under 6 characters (T-14.2)', (tester) async {
     await pumpDialog(tester);
 
-    await tester.enterText(find.widgetWithText(TextField, 'New password'), '123');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'New password'),
+      '123',
+    );
     await tester.enterText(
       find.widgetWithText(TextField, 'Confirm new password'),
       '123',
@@ -84,9 +85,8 @@ void main() {
   testWidgets(
     'a valid matching password calls updatePassword and closes (T-14.2)',
     (tester) async {
-      when(
-        () => auth.updateUser(any()),
-      ).thenAnswer((_) async => UserResponse.fromJson({'id': 'u1'}));
+      when(() => auth.updateUser(any()))
+          .thenAnswer((_) async => UserResponse.fromJson({'id': 'u1'}));
 
       await pumpDialog(tester);
 
@@ -110,9 +110,8 @@ void main() {
   testWidgets('an auth failure shows its message inline (T-14.2)', (
     tester,
   ) async {
-    when(
-      () => auth.updateUser(any()),
-    ).thenThrow(const AuthException('Session expired'));
+    when(() => auth.updateUser(any()))
+        .thenThrow(const AuthException('Session expired'));
 
     await pumpDialog(tester);
 
@@ -127,6 +126,10 @@ void main() {
     await tester.tap(find.text('Change'));
     await tester.pumpAndSettle();
 
-    expect(find.text('New password'), findsOneWidget, reason: 'dialog stays open');
+    expect(
+      find.text('New password'),
+      findsOneWidget,
+      reason: 'dialog stays open',
+    );
   });
 }

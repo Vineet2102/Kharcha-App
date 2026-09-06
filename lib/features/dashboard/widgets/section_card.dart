@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 /// every Dashboard card (spec §11.4) and every Analytics chart card (spec
 /// §11.10).
 class SectionCard extends StatelessWidget {
-  const SectionCard({required this.title, required this.child, this.onSeeAll, super.key});
+  const SectionCard({
+    required this.title,
+    required this.child,
+    this.onSeeAll,
+    super.key,
+  });
 
   final String title;
   final Widget child;

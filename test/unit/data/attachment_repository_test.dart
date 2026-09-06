@@ -83,49 +83,48 @@ void main() {
   });
 
   Future<String> theExpenseId() async {
-    final rows = await db.expenseDao.watchFiltered(
-      householdId: 'h1',
-      filter: const domain.ExpenseFilter(),
-      limit: 10,
-    ).first;
+    final rows = await db.expenseDao
+        .watchFiltered(
+          householdId: 'h1',
+          filter: const domain.ExpenseFilter(),
+          limit: 10,
+        )
+        .first;
     return rows.single.id;
   }
 
-  test(
-    'addFromFile caches a compressed copy, inserts a dirty row, enqueues an '
-    'upload, and flips has_receipt on',
-    () async {
-      final expenseId = await theExpenseId();
+  test('addFromFile caches a compressed copy, inserts a dirty row, enqueues an '
+      'upload, and flips has_receipt on', () async {
+    final expenseId = await theExpenseId();
 
-      final result = await repo.addFromFile(
-        householdId: 'h1',
-        expenseId: expenseId,
-        uploadedBy: 'u1',
-        sourcePath: sourceImagePath,
-      );
+    final result = await repo.addFromFile(
+      householdId: 'h1',
+      expenseId: expenseId,
+      uploadedBy: 'u1',
+      sourcePath: sourceImagePath,
+    );
 
-      expect(result.isOk, isTrue);
-      final id = result.valueOrNull!;
+    expect(result.isOk, isTrue);
+    final id = result.valueOrNull!;
 
-      final cachedFile = File(p.join(docsDir.path, 'receipts', '$id.jpg'));
-      expect(cachedFile.existsSync(), isTrue);
+    final cachedFile = File(p.join(docsDir.path, 'receipts', '$id.jpg'));
+    expect(cachedFile.existsSync(), isTrue);
 
-      final row = await db.attachmentDao.findById(id);
-      expect(row, isNotNull);
-      expect(row!.isDirty, isTrue);
-      expect(row.storagePath, 'h1/$expenseId/$id.jpg');
+    final row = await db.attachmentDao.findById(id);
+    expect(row, isNotNull);
+    expect(row!.isDirty, isTrue);
+    expect(row.storagePath, 'h1/$expenseId/$id.jpg');
 
-      final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
-      final uploadEntry = outbox.singleWhere((e) => e.entity == 'attachment');
-      expect(uploadEntry.op, 'upload');
-      final payload = jsonDecode(uploadEntry.payload) as Map<String, dynamic>;
-      expect(payload['storage_path'], 'h1/$expenseId/$id.jpg');
-      expect(payload['local_path'], cachedFile.path);
+    final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
+    final uploadEntry = outbox.singleWhere((e) => e.entity == 'attachment');
+    expect(uploadEntry.op, 'upload');
+    final payload = jsonDecode(uploadEntry.payload) as Map<String, dynamic>;
+    expect(payload['storage_path'], 'h1/$expenseId/$id.jpg');
+    expect(payload['local_path'], cachedFile.path);
 
-      final expense = await expenseRepo.findById(expenseId);
-      expect(expense!.hasReceipt, isTrue);
-    },
-  );
+    final expense = await expenseRepo.findById(expenseId);
+    expect(expense!.hasReceipt, isTrue);
+  });
 
   test('addFromFile rejects a 4th receipt on the same expense', () async {
     final expenseId = await theExpenseId();
@@ -152,35 +151,32 @@ void main() {
     expect(count, 3);
   });
 
-  test(
-    'delete soft-deletes the attachment, enqueues its removal, and turns '
-    'has_receipt back off once none remain',
-    () async {
-      final expenseId = await theExpenseId();
-      final result = await repo.addFromFile(
-        householdId: 'h1',
-        expenseId: expenseId,
-        uploadedBy: 'u1',
-        sourcePath: sourceImagePath,
-      );
-      final id = result.valueOrNull!;
+  test('delete soft-deletes the attachment, enqueues its removal, and turns '
+      'has_receipt back off once none remain', () async {
+    final expenseId = await theExpenseId();
+    final result = await repo.addFromFile(
+      householdId: 'h1',
+      expenseId: expenseId,
+      uploadedBy: 'u1',
+      sourcePath: sourceImagePath,
+    );
+    final id = result.valueOrNull!;
 
-      await repo.delete(id);
+    await repo.delete(id);
 
-      final row = await db.attachmentDao.findById(id);
-      expect(row!.deletedAt, isNotNull);
-      expect(row.isDirty, isTrue);
+    final row = await db.attachmentDao.findById(id);
+    expect(row!.deletedAt, isNotNull);
+    expect(row.isDirty, isTrue);
 
-      final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
-      final deleteEntry = outbox.singleWhere(
-        (e) => e.entity == 'attachment' && e.op == 'delete',
-      );
-      expect(deleteEntry.entityId, id);
+    final outbox = await db.outboxDao.dueEntries(DateTime.now().toUtc());
+    final deleteEntry = outbox.singleWhere(
+      (e) => e.entity == 'attachment' && e.op == 'delete',
+    );
+    expect(deleteEntry.entityId, id);
 
-      final expense = await expenseRepo.findById(expenseId);
-      expect(expense!.hasReceipt, isFalse);
-    },
-  );
+    final expense = await expenseRepo.findById(expenseId);
+    expect(expense!.hasReceipt, isFalse);
+  });
 
   test(
     'delete leaves has_receipt on while another receipt still exists',
@@ -206,19 +202,22 @@ void main() {
     },
   );
 
-  test('resolveLocalFile returns the cached file without touching Storage', () async {
-    final expenseId = await theExpenseId();
-    final result = await repo.addFromFile(
-      householdId: 'h1',
-      expenseId: expenseId,
-      uploadedBy: 'u1',
-      sourcePath: sourceImagePath,
-    );
-    final attachment = await repo.findById(result.valueOrNull!);
+  test(
+    'resolveLocalFile returns the cached file without touching Storage',
+    () async {
+      final expenseId = await theExpenseId();
+      final result = await repo.addFromFile(
+        householdId: 'h1',
+        expenseId: expenseId,
+        uploadedBy: 'u1',
+        sourcePath: sourceImagePath,
+      );
+      final attachment = await repo.findById(result.valueOrNull!);
 
-    final file = await repo.resolveLocalFile(attachment!);
+      final file = await repo.resolveLocalFile(attachment!);
 
-    expect(file.existsSync(), isTrue);
-    verifyNever(() => client.storage);
-  });
+      expect(file.existsSync(), isTrue);
+      verifyNever(() => client.storage);
+    },
+  );
 }

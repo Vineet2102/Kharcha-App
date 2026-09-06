@@ -56,7 +56,10 @@ class UpdateCheckRepository {
 
     final platform = Platform.isIOS ? 'ios' : 'android';
     final json = await _remote.fetchLatest(platform);
-    await prefs.setInt(_lastCheckedAtKey, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setInt(
+      _lastCheckedAtKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
     if (json == null) return const UpToDate();
 
     final release = AppRelease.fromJson(json);

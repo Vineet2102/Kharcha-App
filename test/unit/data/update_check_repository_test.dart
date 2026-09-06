@@ -14,8 +14,7 @@ class MockSupabaseClient extends Mock implements SupabaseClient {}
 /// its query shape is a one-liner covered by manual/live verification per
 /// this project's convention for thin remote data sources).
 class _FakeAppReleaseRemoteDataSource extends AppReleaseRemoteDataSource {
-  _FakeAppReleaseRemoteDataSource(this.response)
-    : super(MockSupabaseClient());
+  _FakeAppReleaseRemoteDataSource(this.response) : super(MockSupabaseClient());
 
   final Map<String, dynamic>? response;
   int callCount = 0;
@@ -87,27 +86,24 @@ void main() {
     },
   );
 
-  test(
-    'min_supported > current build is Blocked, the emergency brake (spec '
-    '§11.14)',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final repo = UpdateCheckRepository(
-        _FakeAppReleaseRemoteDataSource({
-          'platform': 'android',
-          'version_name': '2.0.0',
-          'build_number': 30,
-          'min_supported': 20,
-          'download_url': 'https://example.com/app.apk',
-          'release_notes': '',
-        }),
-      );
+  test('min_supported > current build is Blocked, the emergency brake (spec '
+      '§11.14)', () async {
+    SharedPreferences.setMockInitialValues({});
+    final repo = UpdateCheckRepository(
+      _FakeAppReleaseRemoteDataSource({
+        'platform': 'android',
+        'version_name': '2.0.0',
+        'build_number': 30,
+        'min_supported': 20,
+        'download_url': 'https://example.com/app.apk',
+        'release_notes': '',
+      }),
+    );
 
-      final result = await repo.checkForUpdates();
+    final result = await repo.checkForUpdates();
 
-      expect(result, isA<Blocked>());
-    },
-  );
+    expect(result, isA<Blocked>());
+  });
 
   test('a dismissed banner for that build stays up to date', () async {
     SharedPreferences.setMockInitialValues({});
@@ -129,30 +125,27 @@ void main() {
     expect(second, isA<UpToDate>());
   });
 
-  test(
-    'a check under 24h old skips the network call unless forced',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final remote = _FakeAppReleaseRemoteDataSource({
-        'platform': 'android',
-        'version_name': '1.3.0',
-        'build_number': 20,
-        'min_supported': 1,
-        'download_url': null,
-        'release_notes': '',
-      });
-      final repo = UpdateCheckRepository(remote);
+  test('a check under 24h old skips the network call unless forced', () async {
+    SharedPreferences.setMockInitialValues({});
+    final remote = _FakeAppReleaseRemoteDataSource({
+      'platform': 'android',
+      'version_name': '1.3.0',
+      'build_number': 20,
+      'min_supported': 1,
+      'download_url': null,
+      'release_notes': '',
+    });
+    final repo = UpdateCheckRepository(remote);
 
-      await repo.checkForUpdates();
-      expect(remote.callCount, 1);
+    await repo.checkForUpdates();
+    expect(remote.callCount, 1);
 
-      final throttled = await repo.checkForUpdates();
-      expect(throttled, isA<UpToDate>());
-      expect(remote.callCount, 1, reason: 'throttled — no second network call');
+    final throttled = await repo.checkForUpdates();
+    expect(throttled, isA<UpToDate>());
+    expect(remote.callCount, 1, reason: 'throttled — no second network call');
 
-      final forced = await repo.checkForUpdates(force: true);
-      expect(forced, isA<UpdateAvailable>());
-      expect(remote.callCount, 2, reason: 'force bypasses the 24h throttle');
-    },
-  );
+    final forced = await repo.checkForUpdates(force: true);
+    expect(forced, isA<UpdateAvailable>());
+    expect(remote.callCount, 2, reason: 'force bypasses the 24h throttle');
+  });
 }

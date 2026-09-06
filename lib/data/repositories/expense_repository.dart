@@ -35,7 +35,10 @@ class ExpenseRepository {
   Stream<int> watchFilteredTotal({
     required String householdId,
     required ExpenseFilter filter,
-  }) => _db.expenseDao.watchFilteredTotal(householdId: householdId, filter: filter);
+  }) => _db.expenseDao.watchFilteredTotal(
+    householdId: householdId,
+    filter: filter,
+  );
 
   Future<domain.Expense?> findById(String id) async =>
       (await _db.expenseDao.findById(id))?.toDomain();

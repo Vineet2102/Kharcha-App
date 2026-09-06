@@ -128,7 +128,11 @@ void main() {
         methodsById: const {},
         profilesById: const {},
       );
-      final fields = utf8.decode(bytes.skip(3).toList()).trim().split('\r\n')[1].split(',');
+      final fields = utf8
+          .decode(bytes.skip(3).toList())
+          .trim()
+          .split('\r\n')[1]
+          .split(',');
 
       expect(fields[2], 'Unknown'); // member
       expect(fields[4], ''); // category
@@ -137,15 +141,21 @@ void main() {
   });
 
   group('buildIncomeCsv', () {
-    test('has its own header with no time/payment_method/merchant/has_receipt', () {
-      final bytes = buildIncomeCsv(
-        const [],
-        categoriesById: const {},
-        profilesById: const {},
-      );
-      final text = utf8.decode(bytes.skip(3).toList());
-      expect(text.trimRight(), 'date,member,amount_inr,category,source,note,id');
-    });
+    test(
+      'has its own header with no time/payment_method/merchant/has_receipt',
+      () {
+        final bytes = buildIncomeCsv(
+          const [],
+          categoriesById: const {},
+          profilesById: const {},
+        );
+        final text = utf8.decode(bytes.skip(3).toList());
+        expect(
+          text.trimRight(),
+          'date,member,amount_inr,category,source,note,id',
+        );
+      },
+    );
 
     test('formats one row', () {
       final income = Income(
@@ -169,7 +179,10 @@ void main() {
       );
       final lines = utf8.decode(bytes.skip(3).toList()).trim().split('\r\n');
 
-      expect(lines[1], '2026-09-03,Vineet,50000.00,Salary,Employer,Sept salary,i1');
+      expect(
+        lines[1],
+        '2026-09-03,Vineet,50000.00,Salary,Employer,Sept salary,i1',
+      );
     });
   });
 }

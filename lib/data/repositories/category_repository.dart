@@ -27,8 +27,7 @@ class CategoryRepository {
   final AppDatabase _db;
   final void Function() _triggerSync;
 
-  Stream<List<domain.Category>> watchAll(String householdId) => _db
-      .categoryDao
+  Stream<List<domain.Category>> watchAll(String householdId) => _db.categoryDao
       .watchAll(householdId)
       .map((rows) => rows.map((r) => r.toDomain()).toList());
 

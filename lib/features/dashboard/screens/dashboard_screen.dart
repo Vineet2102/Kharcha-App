@@ -432,7 +432,9 @@ class _MemberBreakdownCard extends ConsumerWidget {
         builder: (context, snapshot) {
           final totals = snapshot.data ?? const [];
           if (totals.isEmpty) {
-            return const EmptySectionBody(message: 'No expenses logged this month yet.');
+            return const EmptySectionBody(
+              message: 'No expenses logged this month yet.',
+            );
           }
           final householdTotal = totals.fold(
             0,

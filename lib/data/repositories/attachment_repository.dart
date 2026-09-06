@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show consolidateHttpClientResponseBytes;
+import 'package:flutter/foundation.dart'
+    show consolidateHttpClientResponseBytes;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -29,13 +30,12 @@ const _uuid = Uuid();
 /// null if the plugin declines, e.g. an unsupported format) — injected so
 /// tests can substitute a fake that doesn't need a platform channel. The
 /// real implementation is [FlutterImageCompress.compressWithFile].
-typedef ImageCompressor =
-    Future<Uint8List?> Function(
-      String sourcePath, {
-      required int quality,
-      required int minWidth,
-      required int minHeight,
-    });
+typedef ImageCompressor = Future<Uint8List?> Function(
+  String sourcePath, {
+  required int quality,
+  required int minWidth,
+  required int minHeight,
+});
 
 Future<Uint8List?> _defaultCompressor(
   String sourcePath, {

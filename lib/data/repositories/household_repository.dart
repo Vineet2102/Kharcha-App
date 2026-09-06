@@ -59,6 +59,5 @@ HouseholdRepository householdRepository(Ref ref) => HouseholdRepository(
 );
 
 @Riverpod(keepAlive: true)
-Stream<domain.Household?> household(Ref ref) => ref
-    .watch(householdRepositoryProvider)
-    .watch(AppConstants.seedHouseholdId);
+Stream<domain.Household?> household(Ref ref) =>
+    ref.watch(householdRepositoryProvider).watch(AppConstants.seedHouseholdId);

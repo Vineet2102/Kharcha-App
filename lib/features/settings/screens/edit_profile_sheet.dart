@@ -7,7 +7,10 @@ import '../../../domain/models/profile.dart' as domain;
 
 /// Self-edit: display name + avatar colour (spec §11.13 "Profile" section,
 /// T-14.2). Mirrors `category_editor_sheet.dart`'s shape.
-Future<void> showEditProfileSheet(BuildContext context, domain.Profile profile) {
+Future<void> showEditProfileSheet(
+  BuildContext context,
+  domain.Profile profile,
+) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,

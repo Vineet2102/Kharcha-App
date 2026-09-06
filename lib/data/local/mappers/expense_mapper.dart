@@ -32,32 +32,32 @@ extension ExpenseRowMapper on Expense {
 }
 
 extension ExpenseDomainMapper on domain.Expense {
-  ExpensesCompanion toCompanion({
-    bool dirty = false,
-    String? baseUpdatedAt,
-  }) => ExpensesCompanion(
-    id: Value(id),
-    householdId: Value(householdId),
-    userId: Value(userId),
-    amountPaise: Value(amountPaise),
-    categoryId: Value(categoryId),
-    paymentMethodId: Value(paymentMethodId),
-    spentAt: Value(spentAt),
-    spentOn: Value(spentOn),
-    note: Value(note),
-    merchant: Value(merchant),
-    hasReceipt: Value(hasReceipt),
-    recurringRuleId: Value(recurringRuleId),
-    occurrenceDate: Value(occurrenceDate),
-    createdByDevice: Value(createdByDevice),
-    createdAt: Value(createdAt),
-    updatedAt: Value(updatedAt),
-    deletedAt: Value(deletedAt),
-    isDirty: Value(dirty),
-    localUpdatedAt: dirty ? Value(DateTime.now().toUtc()) : const Value.absent(),
-    syncStatus: Value(dirty ? 'pending' : 'synced'),
-    baseUpdatedAt: baseUpdatedAt == null
-        ? const Value.absent()
-        : Value(baseUpdatedAt),
-  );
+  ExpensesCompanion toCompanion({bool dirty = false, String? baseUpdatedAt}) =>
+      ExpensesCompanion(
+        id: Value(id),
+        householdId: Value(householdId),
+        userId: Value(userId),
+        amountPaise: Value(amountPaise),
+        categoryId: Value(categoryId),
+        paymentMethodId: Value(paymentMethodId),
+        spentAt: Value(spentAt),
+        spentOn: Value(spentOn),
+        note: Value(note),
+        merchant: Value(merchant),
+        hasReceipt: Value(hasReceipt),
+        recurringRuleId: Value(recurringRuleId),
+        occurrenceDate: Value(occurrenceDate),
+        createdByDevice: Value(createdByDevice),
+        createdAt: Value(createdAt),
+        updatedAt: Value(updatedAt),
+        deletedAt: Value(deletedAt),
+        isDirty: Value(dirty),
+        localUpdatedAt: dirty
+            ? Value(DateTime.now().toUtc())
+            : const Value.absent(),
+        syncStatus: Value(dirty ? 'pending' : 'synced'),
+        baseUpdatedAt: baseUpdatedAt == null
+            ? const Value.absent()
+            : Value(baseUpdatedAt),
+      );
 }

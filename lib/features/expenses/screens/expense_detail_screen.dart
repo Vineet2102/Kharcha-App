@@ -470,9 +470,8 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
         );
     if (!mounted) return;
     result.fold((_) {}, (failure) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(failure.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(failure.message)));
     });
   }
 }
@@ -893,7 +892,9 @@ class _ReceiptThumbnailState extends ConsumerState<_ReceiptThumbnail> {
               height: 64,
               child: _file == null
                   ? ColoredBox(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       child: const Icon(Icons.receipt_long_outlined),
                     )
                   : Image.file(_file!, fit: BoxFit.cover),

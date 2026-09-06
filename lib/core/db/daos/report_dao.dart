@@ -360,7 +360,10 @@ class ReportDao extends DatabaseAccessor<AppDatabase> with _$ReportDaoMixin {
     final sumExpr = expenses.amountPaise.sum();
     final query = selectOnly(expenses)
       ..addColumns([expenses.merchant, sumExpr])
-      ..where(_expensePeriod(householdId, start, end) & expenses.merchant.equals('').not())
+      ..where(
+        _expensePeriod(householdId, start, end) &
+            expenses.merchant.equals('').not(),
+      )
       ..groupBy([expenses.merchant])
       ..orderBy([OrderingTerm.desc(sumExpr)])
       ..limit(limit);
