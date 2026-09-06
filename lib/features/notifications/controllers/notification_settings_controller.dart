@@ -1,9 +1,9 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/notifications/notification_settings.dart';
 import '../../../data/repositories/notification_scheduler.dart';
+import '../../../data/repositories/profile_repository.dart';
 
 part 'notification_settings_controller.g.dart';
 
@@ -34,9 +34,10 @@ class NotificationSettingsController extends _$NotificationSettingsController {
     final prefs = await SharedPreferences.getInstance();
     await write(prefs);
     state = update(state);
-    await ref
-        .read(notificationSchedulerProvider)
-        .runAll(AppConstants.seedHouseholdId);
+    final householdId = ref.read(currentHouseholdIdProvider);
+    if (householdId != null) {
+      await ref.read(notificationSchedulerProvider).runAll(householdId);
+    }
   }
 
   Future<void> setDailyReminderEnabled(bool value) => _apply(

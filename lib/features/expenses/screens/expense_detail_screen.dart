@@ -80,6 +80,8 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
   String? get _currentUserId =>
       ref.read(supabaseClientProvider).auth.currentUser?.id;
 
+  String get _householdId => ref.read(currentHouseholdIdProvider) ?? '';
+
   // `ref.watch`, not `ref.read`: this must rebuild once `currentProfileProvider`
   // resolves. It's `keepAlive` and usually already warm by the time a user
   // navigates here, but on a screen opened before anything else has read it
@@ -314,7 +316,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
 
     final repo = ref.read(expenseRepositoryProvider);
     final isDuplicate = await repo.hasPossibleDuplicate(
-      householdId: AppConstants.seedHouseholdId,
+      householdId: _householdId,
       userId: userId,
       amountPaise: money.paise,
       categoryId: _categoryId,
@@ -331,7 +333,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
 
     if (_existing == null) {
       final id = await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: _householdId,
         userId: userId,
         amountPaise: money.paise,
         categoryId: _categoryId,
@@ -340,11 +342,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
         note: _noteController.text.trim(),
         merchant: _merchantController.text.trim(),
       );
-      unawaited(
-        ref
-            .read(budgetAlertServiceProvider)
-            .evaluate(AppConstants.seedHouseholdId),
-      );
+      unawaited(ref.read(budgetAlertServiceProvider).evaluate(_householdId));
       if (!mounted) return;
       Navigator.of(context).pop();
       _showSavedSnackbar(id);
@@ -360,11 +358,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
           merchant: _merchantController.text.trim(),
         ),
       );
-      unawaited(
-        ref
-            .read(budgetAlertServiceProvider)
-            .evaluate(AppConstants.seedHouseholdId),
-      );
+      unawaited(ref.read(budgetAlertServiceProvider).evaluate(_householdId));
       if (!mounted) return;
       Navigator.of(context).pop();
     }
@@ -473,7 +467,7 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
     final result = await ref
         .read(attachmentRepositoryProvider)
         .addFromFile(
-          householdId: AppConstants.seedHouseholdId,
+          householdId: _householdId,
           expenseId: widget.id!,
           uploadedBy: userId,
           sourcePath: picked.path,

@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/core/db/database_provider.dart';
 import 'package:kharcha/data/remote/supabase_client_provider.dart';
@@ -84,7 +83,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
@@ -118,7 +117,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
@@ -143,7 +142,7 @@ void main() {
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
-    final row = await db.householdDao.findById(AppConstants.seedHouseholdId);
+    final row = await db.householdDao.findById(testHouseholdId);
     expect(row!.name, 'The Panickers');
 
     await disposeAndFlush(tester);
@@ -155,7 +154,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u2',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Rupesh',
       isAdmin: false,
     );
@@ -180,7 +179,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
@@ -200,7 +199,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
@@ -222,7 +221,7 @@ void main() {
       await seedProfile(
         db,
         id: 'u1',
-        householdId: AppConstants.seedHouseholdId,
+        householdId: testHouseholdId,
         displayName: 'Vineet',
         isAdmin: true,
       );
@@ -236,10 +235,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Cache cleared and re-synced.'), findsOneWidget);
-      expect(
-        await db.householdDao.findById(AppConstants.seedHouseholdId),
-        isNull,
-      );
+      expect(await db.householdDao.findById(testHouseholdId), isNull);
 
       await disposeAndFlush(tester);
     },
@@ -251,7 +247,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
@@ -273,7 +269,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );

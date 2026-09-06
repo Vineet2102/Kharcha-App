@@ -5,6 +5,8 @@ class AppRoutes {
 
   static const splash = '/splash';
   static const login = '/login';
+  static const signup = '/signup';
+  static const verifyEmail = '/verify-email';
 
   static const dashboard = '/';
   static const expenses = '/expenses';

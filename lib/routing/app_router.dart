@@ -3,7 +3,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../features/analytics/screens/analytics_screen.dart';
 import '../features/auth/screens/login_screen.dart';
+import '../features/auth/screens/signup_screen.dart';
 import '../features/auth/screens/splash_screen.dart';
+import '../features/auth/screens/verify_email_screen.dart';
 import '../features/budgets/screens/budget_detail_screen.dart';
 import '../features/budgets/screens/budget_list_screen.dart';
 import '../features/categories/screens/category_list_screen.dart';
@@ -34,6 +36,15 @@ part 'app_router.g.dart';
 /// signed-out member always lands on `/login`; a signed-in member is bounced
 /// off `/login`/`/splash` straight to the dashboard. `redirect` re-runs
 /// whenever `refreshListenable` fires, i.e. on every Supabase auth event.
+///
+/// `/signup` and `/verify-email` (spec F-15, T-M2.4) join `/login` as the
+/// signed-out-reachable set — a fresh account has no session at all until
+/// its email is confirmed (T-M1.8), so without this a signed-out redirect
+/// would bounce a brand-new user straight back to `/login` mid-flow. This
+/// is still v1.0's plain signed-in/signed-out binary, not the three-state
+/// (no session / confirmed-but-no-household / normal) gate spec'd for
+/// T-M2.8 — that task replaces this `redirect` wholesale once the
+/// onboarding screens it depends on exist.
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
   final client = ref.watch(supabaseClientProvider);
@@ -46,11 +57,15 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: refreshStream,
     redirect: (context, state) {
       final signedIn = client.auth.currentSession != null;
-      final loggingIn = state.matchedLocation == AppRoutes.login;
-      final atSplash = state.matchedLocation == AppRoutes.splash;
+      final loc = state.matchedLocation;
+      final publicUnauthed =
+          loc == AppRoutes.login ||
+          loc == AppRoutes.signup ||
+          loc == AppRoutes.verifyEmail;
+      final atSplash = loc == AppRoutes.splash;
 
-      if (!signedIn) return loggingIn ? null : AppRoutes.login;
-      if (loggingIn || atSplash) return AppRoutes.dashboard;
+      if (!signedIn) return publicUnauthed ? null : AppRoutes.login;
+      if (publicUnauthed || atSplash) return AppRoutes.dashboard;
       return null;
     },
     routes: [
@@ -61,6 +76,17 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.signup,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const SignUpScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) =>
+            VerifyEmailScreen(email: state.extra as String?),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

@@ -4,9 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/data/sync/sync_engine.dart';
+
+/// The fixed household id every screen-level widget test seeds against —
+/// standing in for the real, profile-derived `currentHouseholdIdProvider`
+/// (spec T-M2.1) now that the app no longer hardcodes one. A test's seeded
+/// profile carries this as its `householdId`, so the provider resolves to
+/// it automatically once `currentProfileProvider` reads that profile back —
+/// no explicit provider override needed.
+const testHouseholdId = '11111111-1111-1111-1111-111111111111';
 
 /// Shared mocktail/seeding helpers for Phase 14's per-screen widget tests —
 /// pulled into one file once the 6th near-identical `MockSupabaseClient`
@@ -60,13 +67,14 @@ void stubSignedInAs(MockGoTrueClient auth, String userId) {
       .thenAnswer((_) => Stream<AuthState>.empty());
 }
 
-/// Defaults to [AppConstants.seedHouseholdId] — every household-scoped
-/// provider (`householdProvider`, `householdProfilesProvider`, ...) queries
-/// by that fixed id, not an arbitrary one, so seeding anything else leaves
-/// those providers watching a household that doesn't exist.
+/// Defaults to [testHouseholdId] — every household-scoped provider
+/// (`householdProvider`, `householdProfilesProvider`, ...) now derives its
+/// household id from the seeded profile via `currentHouseholdIdProvider`,
+/// so seeding a profile with a different id leaves those providers watching
+/// a household that doesn't exist.
 Future<void> seedHousehold(
   AppDatabase db, {
-  String id = AppConstants.seedHouseholdId,
+  String id = testHouseholdId,
   String name = 'Panicker Family',
 }) {
   final now = DateTime.now().toUtc();
@@ -83,7 +91,7 @@ Future<void> seedHousehold(
 Future<void> seedProfile(
   AppDatabase db, {
   required String id,
-  String householdId = AppConstants.seedHouseholdId,
+  String householdId = testHouseholdId,
   required String displayName,
   bool isAdmin = false,
   bool isActive = true,

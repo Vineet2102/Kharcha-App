@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/failure.dart';
+import '../../../routing/routes.dart';
 import '../controllers/login_controller.dart';
 
 final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-/// Email + password only — there is no sign-up screen (spec D2, T-3.3).
+/// Email + password sign-in (spec §11.1, T-3.3), plus a link to `/signup`
+/// (spec D2/F-15, T-M2.4 — v1.0's instruction to omit a sign-up link is
+/// superseded in v2.0).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -150,6 +154,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     TextButton(
                       onPressed: isLoading ? null : _forgotPassword,
                       child: const Text('Forgot password?'),
+                    ),
+                    TextButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => context.push(AppRoutes.signup),
+                      child: const Text('New here? Create an account'),
                     ),
                   ],
                 ),

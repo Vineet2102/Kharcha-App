@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../data/repositories/payment_method_repository.dart';
+import '../../../data/repositories/profile_repository.dart';
 import '../../../domain/models/enums.dart';
 import '../../../domain/models/payment_method.dart' as domain;
 
@@ -59,7 +59,7 @@ class _PaymentMethodEditorSheetState
     final repo = ref.read(paymentMethodRepositoryProvider);
     if (widget.existing == null) {
       await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: ref.read(currentHouseholdIdProvider) ?? '',
         name: name,
         type: _type,
       );

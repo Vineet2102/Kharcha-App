@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/time/app_time.dart';
 import '../../domain/models/income.dart' as domain;
 import '../local/mappers/income_mapper.dart';
 import '../sync/sync_engine.dart';
+import 'profile_repository.dart';
 
 part 'income_repository.g.dart';
 
@@ -115,5 +115,8 @@ IncomeRepository incomeRepository(Ref ref) => IncomeRepository(
 /// All non-deleted income for the household, most recent first — backs the
 /// Income List (T-7.2) and, in the future, Analytics.
 @Riverpod(keepAlive: true)
-Stream<List<domain.Income>> householdIncomes(Ref ref) =>
-    ref.watch(incomeRepositoryProvider).watchAll(AppConstants.seedHouseholdId);
+Stream<List<domain.Income>> householdIncomes(Ref ref) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref.watch(incomeRepositoryProvider).watchAll(householdId);
+}

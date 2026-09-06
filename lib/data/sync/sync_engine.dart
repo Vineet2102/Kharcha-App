@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/daos/outbox_dao.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/errors/error_mapper.dart';
 import '../../core/logging/app_logger.dart';
 import '../../core/network/connectivity_service.dart';
 import '../remote/supabase_client_provider.dart';
+import '../repositories/profile_repository.dart';
 import 'outbox_processor.dart';
 import 'pull_service.dart';
 import 'realtime_listener.dart';
@@ -35,6 +35,7 @@ class SyncEngine {
     required this.recurringPostingEngine,
     required this.outboxDao,
     required this.publish,
+    required this.getHouseholdId,
   });
 
   final SupabaseClient client;
@@ -45,6 +46,13 @@ class SyncEngine {
   final RecurringPostingEngine recurringPostingEngine;
   final OutboxDao outboxDao;
   final void Function(SyncState state) publish;
+
+  /// Reads the signed-in member's current household id (spec T-M2.1) at
+  /// call time rather than once at construction — `SyncEngine` itself is
+  /// `keepAlive` and outlives any single household. Null while signed out,
+  /// before the cached profile has resolved, or (from Phase M2 onward) for
+  /// an account with no household yet.
+  final String? Function() getHouseholdId;
 
   bool _syncing = false;
   bool _stopped = false;
@@ -96,10 +104,17 @@ class SyncEngine {
       }
 
       publish(const SyncRunning(step: 'push'));
-      const householdId = AppConstants.seedHouseholdId;
-
       await outboxProcessor.process();
       if (_stopped) return;
+
+      // No household to sync against yet (signed in but not yet joined/
+      // created one — the full no-household behaviour is T-M2.7's; this is
+      // just the minimal guard so a null id here can't reach `pullAll`).
+      final householdId = getHouseholdId();
+      if (householdId == null) {
+        publish(SyncIdle(lastSyncedAt: DateTime.now()));
+        return;
+      }
 
       publish(const SyncRunning(step: 'pull'));
       await pullService.pullAll(householdId);
@@ -155,6 +170,7 @@ SyncEngine syncEngine(Ref ref) {
     outboxDao: ref.watch(appDatabaseProvider).outboxDao,
     publish: (state) =>
         ref.read(syncStateControllerProvider.notifier).publish(state),
+    getHouseholdId: () => ref.read(currentHouseholdIdProvider),
   );
   ref.onDispose(engine.stop);
   return engine;

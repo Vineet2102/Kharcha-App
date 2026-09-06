@@ -5,7 +5,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/logging/app_logger.dart';
@@ -127,15 +126,31 @@ Stream<domain.Profile?> currentProfile(Ref ref) {
   return ref.watch(profileRepositoryProvider).watch(userId);
 }
 
+/// Derives the signed-in member's household id from the cached profile
+/// (spec T-M2.1) — the single source every household-scoped repository/DAO
+/// call, outbox payload, and storage path routes through instead of the old
+/// single hardcoded household constant (removed from `AppConstants` by this
+/// task). Null while signed out, before the cached profile has resolved, or
+/// (from Phase M2 onward, once onboarding exists) for an account that
+/// hasn't joined/created a household yet — every read site below treats
+/// null as "nothing to show" rather than crashing.
+@Riverpod(keepAlive: true)
+String? currentHouseholdId(Ref ref) =>
+    ref.watch(currentProfileProvider).value?.householdId;
+
 /// Every member of the household — the "Paid by" selector (spec §11.2), the
 /// Expense List's member filter/name chip (spec §11.3), and the Dashboard's
 /// per-member breakdown (Phase 6).
 @Riverpod(keepAlive: true)
-Stream<List<domain.Profile>> householdProfiles(Ref ref) => ref
-    .watch(appDatabaseProvider)
-    .profileDao
-    .watchAll(AppConstants.seedHouseholdId)
-    .map((rows) => rows.map((r) => r.toDomain()).toList());
+Stream<List<domain.Profile>> householdProfiles(Ref ref) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref
+      .watch(appDatabaseProvider)
+      .profileDao
+      .watchAll(householdId)
+      .map((rows) => rows.map((r) => r.toDomain()).toList());
+}
 
 /// Looks up one member's display name/colour from the already-loaded
 /// [householdProfilesProvider] list — avoids a second DB subscription per

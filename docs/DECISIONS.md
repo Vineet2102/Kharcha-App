@@ -2254,3 +2254,286 @@ mocked widget test or from static analysis.
 - **Conclusion: the v2.0 multi-tenancy schema, RPCs, RLS policies, and
   the profile-membership guard trigger all behave exactly as specified.
   Nothing in §7.2 needs further work before Phase M2 (client).**
+
+## 2026-09-06 — Phase M2 (client multi-tenancy)
+
+### T-M2.1 — `currentHouseholdIdProvider` and a deliberate circular import
+
+- `currentHouseholdIdProvider` (`data/repositories/profile_repository.dart`)
+  is a one-line derived provider: `ref.watch(currentProfileProvider).value
+  ?.householdId`. It lives next to `currentProfileProvider` rather than in
+  its own file because every consumer that needs a household id already
+  needs profile-derived data too, and the two are conceptually one fact
+  ("who is signed in, and what household are they in") — splitting them
+  into separate files would just add an import for no isolation benefit.
+- This does create a real circular import: `sync_engine.dart` now imports
+  `profile_repository.dart` (for `currentHouseholdIdProvider`, used in the
+  `syncEngineProvider` function body to build the `getHouseholdId`
+  callback), and `profile_repository.dart` already imported
+  `sync_engine.dart` (for `syncEngineProvider`, used in `ProfileRepository`'s
+  `_triggerSync` callback since Phase 3). Same shape now exists for
+  `household_repository.dart`, `category_repository.dart`,
+  `payment_method_repository.dart`, `income_repository.dart`, and
+  `budget_repository.dart` — each already imported `sync_engine.dart` for
+  its own `_triggerSync`, and now also imports `profile_repository.dart` for
+  the household-id provider.
+- Dart permits circular *library* imports (unlike `part`/`part of`, which
+  must form a tree) — confirmed here empirically, not just by spec-reading:
+  `dart run build_runner build` and `flutter analyze --fatal-infos` both ran
+  clean with the cycle in place, and all 427 tests still pass. Not
+  refactored away — introducing a new no-op indirection file just to avoid
+  a cycle Dart already handles correctly would be exactly the kind of
+  unrequested abstraction §0 rule 4 warns against.
+
+### Uniform `?? ''` fallback for a null household id, not scattered special-casing
+
+- `currentHouseholdIdProvider` is `String?`, but nearly every DAO/repository
+  method it feeds still takes a plain `String householdId` (T-M2.7's job is
+  to make the sync engine itself household-aware end to end; T-M2.1 is only
+  "route everything through the one provider"). Rather than inventing a
+  different null-handling shape per call site (throw here, short-circuit
+  there, a sentinel elsewhere), every read-path provider (`categories`,
+  `paymentMethods`, `householdIncomes`, `budgetsForMonth`,
+  `householdRecurringRules`, `householdProfiles`, `household`) returns an
+  empty stream when the id is null, and every screen/controller call site
+  falls back to `ref.watch/read(currentHouseholdIdProvider) ?? ''` before
+  passing it down. An empty string never matches a real household's UUID,
+  so this fails closed (no data leaks, nothing writes under a wrong id) —
+  it's the same "no crash, no data" posture Phase 6's T-6.5 already
+  established for empty-state totals, just applied one layer down.
+- This transient-null window is genuinely reachable today, not a
+  hypothetical: `currentProfileProvider` resolves from a Drift stream query,
+  which — unlike the old compile-time `AppConstants.seedHouseholdId`
+  constant — has no value on the very first frame after a cold boot, before
+  its first stream event arrives. Every screen that reads a household id in
+  a `ConsumerWidget.build`/`ConsumerState` now goes through this same
+  fallback, so that brief window renders an empty/zeroed state instead of
+  throwing, exactly like every other "no data yet" case already handled
+  throughout the app.
+- `SyncEngine` is the one place this got a real (if minimal) null guard
+  instead of the string fallback, because `PullService.pullAll`/
+  `RealtimeListener.start`/`RecurringPostingEngine.run` all require a
+  non-null `String` and calling them with `''` would be actively wrong (a
+  pull-by-household-id query against `''` is a real, if harmless, wasted
+  round-trip, not a no-op). `SyncEngine`'s constructor gained a
+  `String? Function() getHouseholdId` callback (read at `sync()` call time,
+  not captured once at construction, since the engine itself is
+  `keepAlive` and outlives any one household); a null result now short-
+  circuits straight to `SyncIdle` after the outbox push, skipping pull/
+  realtime/recurring-posting entirely. This is *not* T-M2.7's full
+  "no-household short-circuit" behaviour (that task also covers wiping
+  `sync_meta`/re-fetching on a household change) — it is the minimal guard
+  needed so a nullable household id can't reach a method that requires a
+  non-null one. Recorded here so T-M2.7 doesn't rediscover this as new
+  ground; it should extend this guard, not replace it.
+
+### Test fixture: `testHouseholdId` replaces the deleted `AppConstants` constant
+
+- `test/widget/widget_test_helpers.dart`'s `seedHousehold`/`seedProfile`
+  helpers defaulted their `householdId` parameter to
+  `AppConstants.seedHouseholdId`; deleting that constant meant every one of
+  the 6 widget-test files using these helpers needed a replacement. Added a
+  local `const testHouseholdId = '11111111-1111-1111-1111-111111111111'`
+  (same literal value, so no test's seeded data actually changes) to
+  `widget_test_helpers.dart` and did a mechanical rename across the 5
+  dependent test files, dropping each file's now-unused `AppConstants`
+  import.
+- No test needed an explicit `currentHouseholdIdProvider` override: because
+  the provider derives from `currentProfileProvider`, and every affected
+  test already seeds a profile (via `seedProfile`) whose `householdId`
+  matches `testHouseholdId` by default, the provider resolves correctly
+  once the real profile-reading machinery runs — exactly the same "seed the
+  underlying data, let the real provider chain resolve it" precedent
+  `stubSignedInAs` already established for `currentSessionProvider`.
+
+### T-M2.2 — membership RPCs stay outside the outbox, and why the test mocks the data source instead of `SupabaseClient.rpc()`
+
+- `HouseholdRepository`'s 10 new methods (`createHousehold`, `joinHousehold`,
+  `leaveHousehold`, `setMemberRole`, `setMemberActive`, `removeMember`,
+  `createInvite`, `revokeInvites`, `touchActivity`, `deleteHousehold`) do
+  **not** follow this app's usual "write to Drift + enqueue an outbox entry"
+  iron rule (§9.1) that every CRUD repository (expenses, categories,
+  budgets, ...) follows. A membership change genuinely cannot be queued for
+  later replay the way an offline expense can: `create_household`/
+  `join_household` mint server state (a new household id, seeded
+  categories, an invite code) that doesn't exist anywhere until the RPC
+  actually runs, so there's nothing meaningful to write locally first and
+  reconcile later. These methods are a live-only round trip, full stop — if
+  the device is offline, the call throws a `NetworkFailure` and the caller
+  (a future onboarding/household-management screen) is expected to show
+  that plainly, not to silently queue "join this household" for whenever
+  connectivity returns. This makes `HouseholdRepository`'s new methods
+  structurally closer to `AuthRepository` (pure network wrapper, zero local
+  side effects) than to its own existing `updateName` (Drift + outbox).
+- Correspondingly, none of the 10 new methods call `_triggerSync()` either.
+  An early draft did (mirroring every other write-path repository), but
+  `_triggerSync()` immediately after `createHousehold`/`joinHousehold`
+  would fire before the local `profiles` cache even knows about the new
+  household id — `SyncEngine.getHouseholdId()` reads `currentHouseholdIdProvider`,
+  which derives from the *locally cached* profile, and that cache is only
+  refreshed by `ProfileRepository.refresh()`'s background fetch, not by
+  this RPC's own response. Orchestrating "call the RPC → refresh the local
+  profile → then sync → then navigate" is real sequencing logic that
+  belongs to the calling screen (T-M2.4–T-M2.6's onboarding flow) or to
+  T-M2.7's household-aware `SyncEngine`, not silently inside a one-line
+  repository wrapper that has no way to await the profile refresh itself.
+- **Testing**: spec text says "unit tests with a mocked client", which
+  could mean mocking `SupabaseClient` directly. Tried and rejected: every
+  RPC method resolves to `SupabaseClient.rpc<T>(...)`, whose declared return
+  type is `PostgrestFilterBuilder<T>` (a real class implementing `Future<T>`
+  via its own `then()`, not a plain `Future`) — mocktail can only stub a
+  method to return a value assignable to that exact generic builder type,
+  which means either constructing a real `PostgrestFilterBuilder` by hand
+  (needs internal constructor args this app has no reason to know) or
+  wiring a fake `http.Client` under a real `SupabaseClient` (the approach
+  the `postgrest` package's own tests use for its `CustomHttpClient`). Both
+  are exactly the "mocking the Postgrest chain" cost this codebase already
+  decided against once, in T-15.3 (`Household`/`ProfileSyncAdapter.pushUpsert`
+  skipped for the same reason — see that entry above) and again in
+  `update_check_repository_test.dart` (its own doc comment: "its query
+  shape is a one-liner covered by manual/live verification ... for thin
+  remote data sources").
+- Resolved the same way both those precedents did: added the 10 RPC calls
+  as one-line methods on the existing `HouseholdRemoteDataSource` (already
+  the thin thing `HouseholdSyncAdapter`'s pull side depends on), and unit-
+  tested `HouseholdRepository` against a `MockHouseholdRemoteDataSource
+  extends Mock implements HouseholdRemoteDataSource` — a plain interface
+  with no generic-builder complications, mocked exactly like
+  `MockPullService`/`MockOutboxProcessor` already are in
+  `sync_engine_test.dart`. This covers every success path and every named
+  §6.9.2 error (24 named-error cases across the 10 methods) at the layer
+  that actually contains the logic worth testing — the `Result`-wrapping
+  and argument-passing — while leaving each RPC's real query shape to live
+  verification, same as every other thin remote data source in this app.
+- Every error-case test asserts `result.isErr` rather than a specific
+  `Failure` subtype. `ErrorMapper._postgrestFailure` doesn't recognise any
+  of these v2.0 message strings yet (`not_admin`, `already_in_household`,
+  ...) — a bare `raise exception 'not_admin'` reaches the client as
+  `PostgrestException(message: 'not_admin', code: 'P0001')`, which today
+  falls through to `UnknownFailure` — and teaching it the exact per-code
+  copy is explicitly T-M2.3's job. Pinning `UnknownFailure` now would just
+  be a test that immediately goes stale the moment T-M2.3 lands.
+
+### T-M2.3 — 7 of the 11 error codes have no spec-quoted copy; invented, not left generic
+
+- T-M2.3's task line says each code "maps to the exact user-facing copy in
+  F-15/F-16," but grepping the whole spec for each of the 11 codes turns up
+  quoted UI copy for only 4: `already_in_household`, `invalid_invite`,
+  `household_inactive` (all three from F-15's Join screen) and `last_admin`
+  (F-16's Leave household). The other 7 — `not_admin`, `not_a_member`,
+  `not_in_household`, `cannot_deactivate_self`, `use_leave_household`,
+  `household_not_empty`, `promote_someone_first` — appear only as the bare
+  code name: inside the RPC bodies that raise them (§6.9.2) and as the
+  "expected error" column of the §7.2 cross-tenant test table, which names
+  the code for a test assertion, not prose meant for a user to read.
+- Per §0 rule 4 (resolve ambiguity with the simplest option that satisfies
+  the acceptance criteria, recorded here), wrote copy for those 7 rather
+  than leaving them to fall through to `UnknownFailure`'s generic "Something
+  went wrong" — that would satisfy the letter of "maps to a message" but
+  defeat the actual point of naming these errors individually in the first
+  place, which is that the UI can eventually tell a user *why* (e.g. F-16's
+  member-management overflow menu, when it lands in T-M2.9, should be able
+  to show "That person is no longer a member of this household" rather than
+  a blank retry). Each was written to match the spec's existing tone for
+  the 4 quoted ones: short, plain, second-person, no jargon, and — where the
+  spec's own convention suggests it (`last_admin`'s "Make someone else an
+  admin first") — naming the fix, not just the problem.
+- `promote_someone_first`'s one spec-quoted appearance is in F-18 (account
+  deletion), not F-15/F-16, and it interpolates the household's name: "You're
+  the only admin of <name>. Make someone else an admin, or remove the other
+  members first." `ErrorMapper` is a stateless, context-free static mapper
+  with no household name available at the point an exception is caught, so
+  the mapped copy drops the interpolation ("You're the only admin. Make
+  someone else an admin, or remove the other members first.") — the same
+  fact, missing only the household's own name. If a future screen wants the
+  full sentence, it already knows which household it's showing and can
+  prefix the name itself; `ErrorMapper` doesn't need to grow household
+  context just for one string.
+- `not_admin` is the one code mapped to `PermissionFailure` instead of
+  `ValidationFailure` — every other new code is a business-rule rejection
+  (household composition, membership state), but `not_admin` is specifically
+  "you don't have the role for this," which is exactly what
+  `PermissionFailure` already means elsewhere (the RLS-denial branch just
+  above it in the same function). Kept consistent rather than inventing a
+  second "permission-shaped" bucket.
+
+### T-M2.4 — Terms/Privacy Policy links with nothing to link to yet
+
+- Spec F-15 requires the sign-up screen's legal line to have "Terms" and
+  "Privacy Policy" individually tappable, not just present as plain text —
+  but T-M3.1 (the task that actually writes and publishes those pages) is
+  three sub-phases away. Rather than either skip the tap targets (fails the
+  literal spec requirement) or invent a placeholder URL now that T-M3.1
+  would have to go find and replace later, each is a plain `InkWell` that
+  shows "The Terms aren't published yet."/"The Privacy Policy aren't
+  published yet." — true today, and it becomes dead code the moment T-M3.1
+  wires in the real GitHub Pages URLs (at which point these become
+  `launchUrl` calls instead, same shape as `app.dart`'s existing
+  `_showBlockedUpdateDialog` use of `url_launcher`).
+- `_authMessage`'s final fallback string changed from "Could not sign in.
+  Please try again." to "Something went wrong. Please try again." — a
+  deliberate, necessary change, not a gratuitous one: this function is now
+  reached by both `signIn()` and `signUp()` failures, and the old text is
+  actively wrong ("could not sign in") when shown after a failed *sign-up*
+  attempt whose exact cause `ErrorMapper` doesn't recognise. No test pinned
+  the old string.
+- `app_router.dart`'s `redirect` grew a `publicUnauthed` set (`/login`,
+  `/signup`, `/verify-email`) instead of the single `loggingIn` check it had
+  before. This is the minimum change T-M2.4's own acceptance line requires
+  ("On success → `/verify-email`") — with confirm-email mandatory (T-M1.8),
+  `signUp()` never establishes a session, so `/verify-email` would
+  otherwise be caught by the existing `!signedIn → /login` rule and bounce
+  the user straight back before they ever saw it. Deliberately left as a
+  binary signed-in/signed-out check rather than reaching ahead into
+  T-M2.8's three-state (no session / confirmed-but-no-household / normal)
+  gate — that task already owns replacing this `redirect` function
+  wholesale once the onboarding screens it routes to actually exist; adding
+  a third state here now would just be logic T-M2.8 has to find and delete.
+
+### T-M2.5 — whether "poll `refreshSession()`" can work at all here is genuinely unverified
+
+- Spec F-15 says the verify-email screen "polls `auth.refreshSession()` on
+  resume and every 5 seconds while visible, so tapping the link on the same
+  phone lands the user in the app without a manual step." Read literally
+  and checked against `gotrue-2.27.2`'s actual source
+  (`refreshSession([refreshToken])`, `lib/src/gotrue_client.dart:776`):
+  the call throws `AuthSessionMissingException` immediately, before any
+  network request, whenever there is no current session **and** no
+  refresh token was passed in. `signUp()`'s own source
+  (`gotrue_client.dart:337`) only calls `_saveSession` — the thing that
+  would make a session exist locally — when the server's response includes
+  one, and Supabase's long-documented behaviour for password sign-up with
+  "Confirm email" ON (the config T-M1.8 set) is to return `{user, session:
+  null}` until the link is clicked. Taken together, that means every poll
+  tick before confirmation should throw `AuthSessionMissingException`, not
+  silently no-op and succeed later — there is nothing for `refreshSession()`
+  to refresh until *something else* establishes a session first.
+- That "something else" is almost certainly Supabase Flutter's own PKCE
+  deep-link handling: `Supabase.initialize()` already listens for the
+  `io.supabase.kharcha://login-callback/` scheme (configured in T-M1.8) and
+  exchanges the confirmation link's code for a session automatically the
+  moment the OS delivers that URI to the app — independently of anything on
+  this screen. Under that reading, `tryRefreshSession()`'s polling is a
+  best-effort nudge/fallback (useful if the deep-link exchange landed while
+  the app was backgrounded and needs a resume-triggered check to notice),
+  not the actual mechanism that creates the session — and the router's
+  existing `redirect` (already listening to `onAuthStateChange` since T-3.4)
+  is what actually moves the user off this screen either way, regardless of
+  which of the two paths fired.
+- Given genuine inability to test this against a real Supabase project with
+  a real inbox in this sandbox (the same live-device constraint behind
+  Gate 4/13's `partial` status and Gate 15's integration test needing a real
+  run), implemented `tryRefreshSession()` to swallow every exception
+  (`AuthSessionMissingException` included) down to `false` rather than
+  propagate or log it as an error — the expected steady state, while
+  waiting, is "this throws on almost every tick," and that must not look
+  like a bug to the user or spam `AppLogger`. Held T-M2.5 at "done
+  (unverified live)" rather than a plain "done": a live pass needs to
+  confirm (a) tapping the link actually returns the user to a signed-in
+  Kharcha session with no manual step, and (b) if `refreshSession()` really
+  does throw on every tick until then, that this is silent and harmless as
+  designed rather than a visible glitch (e.g. a flashed error snackbar).
+  If a live pass shows the deep link alone is sufficient and the poll adds
+  nothing, that is not a defect — the spec asked for polling as a resume-
+  time fallback specifically for the case where the deep-link exchange
+  landed while the screen wasn't in the foreground to react to it.

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../core/time/app_time.dart';
@@ -119,6 +118,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = ref.watch(expenseRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final currentUserId = ref
         .watch(supabaseClientProvider)
         .auth
@@ -168,7 +168,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
           ),
           StreamBuilder<int>(
             stream: repo.watchFilteredTotal(
-              householdId: AppConstants.seedHouseholdId,
+              householdId: householdId,
               filter: _filter,
             ),
             builder: (context, snapshot) {
@@ -205,7 +205,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
           Expanded(
             child: StreamBuilder<List<domain.Expense>>(
               stream: repo.watchFiltered(
-                householdId: AppConstants.seedHouseholdId,
+                householdId: householdId,
                 filter: _filter,
                 limit: _limit,
               ),

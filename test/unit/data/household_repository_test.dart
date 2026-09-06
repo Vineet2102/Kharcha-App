@@ -1,7 +1,13 @@
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
 import 'package:kharcha/core/db/app_database.dart';
+import 'package:kharcha/data/remote/household_remote_ds.dart';
 import 'package:kharcha/data/repositories/household_repository.dart';
+
+class MockHouseholdRemoteDataSource extends Mock
+    implements HouseholdRemoteDataSource {}
 
 void main() {
   late AppDatabase db;
@@ -9,7 +15,10 @@ void main() {
 
   setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
-    repo = HouseholdRepository(db, () {});
+    // Never touched by the local-first read/write paths under test below
+    // (only the RPC-wrapper methods, covered in their own test file, call
+    // through to it) — a bare mock is enough.
+    repo = HouseholdRepository(MockHouseholdRemoteDataSource(), db, () {});
     final now = DateTime.now().toUtc();
     await db.householdDao.upsert(
       HouseholdsCompanion.insert(

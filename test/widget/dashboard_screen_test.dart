@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/core/db/database_provider.dart';
 import 'package:kharcha/data/remote/supabase_client_provider.dart';
@@ -73,7 +72,7 @@ void main() {
     await db.categoryDao.upsert(
       CategoriesCompanion.insert(
         id: 'cat1',
-        householdId: AppConstants.seedHouseholdId,
+        householdId: testHouseholdId,
         name: 'Groceries',
         createdAt: now,
         updatedAt: now,
@@ -82,7 +81,7 @@ void main() {
     await db.expenseDao.upsert(
       ExpensesCompanion.insert(
         id: 'exp1',
-        householdId: AppConstants.seedHouseholdId,
+        householdId: testHouseholdId,
         userId: userId,
         amountPaise: 25000,
         categoryId: const Value('cat1'),

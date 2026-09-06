@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/constants/category_visuals.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/core/db/database_provider.dart';
@@ -29,7 +28,7 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
     );
   });

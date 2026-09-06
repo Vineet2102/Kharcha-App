@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/core/db/database_provider.dart';
 import 'package:kharcha/data/remote/supabase_client_provider.dart';
@@ -47,7 +46,7 @@ void main() {
     await db.expenseDao.upsert(
       ExpensesCompanion.insert(
         id: expenseId,
-        householdId: AppConstants.seedHouseholdId,
+        householdId: testHouseholdId,
         userId: ownerId,
         amountPaise: 25000,
         spentAt: DateTime.utc(2026, 9, 1),
@@ -64,7 +63,7 @@ void main() {
   domain.Profile profile(String id, String name, {bool isAdmin = false}) =>
       domain.Profile(
         id: id,
-        householdId: AppConstants.seedHouseholdId,
+        householdId: testHouseholdId,
         displayName: name,
         role: isAdmin ? MemberRole.admin : MemberRole.member,
         createdAt: DateTime.utc(2026, 1, 1),

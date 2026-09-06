@@ -10,6 +10,7 @@ import 'core/notifications/notification_service.dart';
 import 'data/remote/supabase_client_provider.dart';
 import 'data/repositories/budget_alert_service.dart';
 import 'data/repositories/notification_scheduler.dart';
+import 'data/repositories/profile_repository.dart';
 import 'data/repositories/update_check_repository.dart';
 import 'data/sync/sync_engine.dart';
 import 'routing/app_router.dart';
@@ -50,10 +51,13 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
 
     // T-13.2: recurring notifications are re-armed on every app start,
     // since Android clears alarms on reboot and this app has no background
-    // execution to re-arm them any other way.
-    ref
-        .read(notificationSchedulerProvider)
-        .runAll(AppConstants.seedHouseholdId);
+    // execution to re-arm them any other way. No-op while there's no
+    // resolved household yet (signed out, or — from Phase M2 — not yet
+    // joined/created one).
+    final bootHouseholdId = ref.read(currentHouseholdIdProvider);
+    if (bootHouseholdId != null) {
+      ref.read(notificationSchedulerProvider).runAll(bootHouseholdId);
+    }
 
     // T-14.6: at most once per 24h (the repository's own throttle) — see
     // `UpdateCheckRepository.checkForUpdates`.
@@ -98,10 +102,11 @@ class _KharchaAppState extends ConsumerState<KharchaApp>
     // Budget alerts and the rest of the notification types are evaluated on
     // every resume regardless of the sync throttle above (spec §11.7/
     // §11.12) — both are local reads, not network calls.
-    ref.read(budgetAlertServiceProvider).evaluate(AppConstants.seedHouseholdId);
-    ref
-        .read(notificationSchedulerProvider)
-        .runAll(AppConstants.seedHouseholdId);
+    final resumeHouseholdId = ref.read(currentHouseholdIdProvider);
+    if (resumeHouseholdId != null) {
+      ref.read(budgetAlertServiceProvider).evaluate(resumeHouseholdId);
+      ref.read(notificationSchedulerProvider).runAll(resumeHouseholdId);
+    }
     ref.read(updateCheckControllerProvider.notifier).check();
   }
 

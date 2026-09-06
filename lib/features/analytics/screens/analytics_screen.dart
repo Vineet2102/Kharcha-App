@@ -2,7 +2,6 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../core/time/app_time.dart';
@@ -107,9 +106,10 @@ class _MonthlyTrendChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     return StreamBuilder<List<MonthlyTotal>>(
       stream: repo.watchMonthlyTrend(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         endMonth: endMonth,
         months: 12,
       ),
@@ -251,12 +251,13 @@ class _CategoryDonutChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final categoriesById = {for (final c in categories) c.id: c};
 
     return StreamBuilder<List<GroupedTotal>>(
       stream: repo.watchAllCategoryTotals(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         monthStart: monthStart,
       ),
       builder: (context, snapshot) {
@@ -345,11 +346,12 @@ class _MemberComparisonChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final profiles = ref.watch(householdProfilesProvider).value ?? const [];
 
     return StreamBuilder<List<MemberMonthTotal>>(
       stream: repo.watchMemberMonthlyTrend(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         endMonth: endMonth,
         months: _months,
       ),
@@ -478,12 +480,13 @@ class _PaymentMethodSplit extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final methods = ref.watch(paymentMethodsProvider).value ?? const [];
     final methodsById = {for (final m in methods) m.id: m};
 
     return StreamBuilder<List<GroupedTotal>>(
       stream: repo.watchExpenseByPaymentMethod(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         monthStart: monthStart,
       ),
       builder: (context, snapshot) {
@@ -539,11 +542,12 @@ class _DayOfWeekChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final monthEnd = AppTime.monthAfter(monthStart, 1);
 
     return StreamBuilder<List<WeekdayTotal>>(
       stream: repo.watchExpenseByWeekday(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         monthStart: monthStart,
       ),
       builder: (context, snapshot) {
@@ -652,9 +656,10 @@ class _TopMerchantsList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     return StreamBuilder<List<GroupedTotal>>(
       stream: repo.watchTopMerchants(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         monthStart: monthStart,
       ),
       builder: (context, snapshot) {
@@ -699,12 +704,13 @@ class _MonthOverMonthTable extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final categoriesById = {for (final c in categories) c.id: c};
 
     return StreamBuilder<List<CategoryMonthTotal>>(
       stream: repo.watchCategoryMonthlyTrend(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: householdId,
         endMonth: endMonth,
         months: _months,
       ),

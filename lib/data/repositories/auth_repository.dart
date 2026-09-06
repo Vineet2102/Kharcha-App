@@ -41,6 +41,66 @@ class AuthRepository {
     }
   }
 
+  /// Sign-up (spec F-15, T-M2.4). `displayName` is passed as
+  /// `raw_user_meta_data.display_name` so the server-side `handle_new_user`
+  /// trigger picks it up for the new `profiles` row; the account starts
+  /// with no household (v2.0's `handle_new_user`, unlike v1.0's, never
+  /// auto-assigns one). Never signs the caller straight into the app —
+  /// email confirmation is required first (T-M1.8), so a successful call
+  /// here only means the account was created, not that it's usable yet.
+  Future<Result<void, Failure>> signUp({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      await _client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'display_name': displayName},
+      );
+      return const Result.ok(null);
+    } catch (error) {
+      final failure = ErrorMapper.map(error);
+      if (failure is NetworkFailure) {
+        return const Result.err(
+          NetworkFailure('Creating an account needs an internet connection.'),
+        );
+      }
+      return Result.err(failure);
+    }
+  }
+
+  /// Re-sends the sign-up confirmation email (spec F-15 "Verify email",
+  /// T-M2.5's Resend button). Distinct from [resetPassword]'s email — this
+  /// one re-triggers the original confirmation link, not a password reset.
+  Future<Result<void, Failure>> resendConfirmationEmail(String email) async {
+    try {
+      await _client.auth.resend(email: email, type: OtpType.signup);
+      return const Result.ok(null);
+    } catch (error) {
+      return Result.err(ErrorMapper.map(error));
+    }
+  }
+
+  /// Best-effort poll for "has this account been confirmed yet?" (spec F-15
+  /// "Verify email", T-M2.5: polled on resume and every 5s while that
+  /// screen is visible). There is deliberately no [Result] here — every
+  /// outcome short of "yes, refreshed" (no session to refresh yet, offline,
+  /// a transient server error) means exactly one thing to the caller: keep
+  /// waiting, nothing to show the user. A refreshed session fires
+  /// `onAuthStateChange`, which the router's `redirect` already listens to
+  /// (T-3.4) — this method's only job is to give that a chance to happen;
+  /// it does not navigate anywhere itself.
+  Future<bool> tryRefreshSession() async {
+    try {
+      await _client.auth.refreshSession();
+      return _client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Result<void, Failure>> signOut() async {
     try {
       await _client.auth.signOut();

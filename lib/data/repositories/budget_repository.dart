@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/errors/failure.dart';
@@ -14,6 +13,7 @@ import '../../domain/models/budget_status.dart';
 import '../../domain/models/enums.dart';
 import '../local/mappers/budget_mapper.dart';
 import '../sync/sync_engine.dart';
+import 'profile_repository.dart';
 
 part 'budget_repository.g.dart';
 
@@ -245,7 +245,10 @@ BudgetRepository budgetRepository(Ref ref) => BudgetRepository(
 /// This month's (or any given month's) budgets — the Budgets screen and the
 /// Dashboard's budget card (T-8.2/T-8.4).
 @riverpod
-Stream<List<domain.Budget>> budgetsForMonth(Ref ref, DateTime periodMonth) =>
-    ref
-        .watch(budgetRepositoryProvider)
-        .watchForMonth(AppConstants.seedHouseholdId, periodMonth);
+Stream<List<domain.Budget>> budgetsForMonth(Ref ref, DateTime periodMonth) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref
+      .watch(budgetRepositoryProvider)
+      .watchForMonth(householdId, periodMonth);
+}

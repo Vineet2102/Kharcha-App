@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/errors/failure.dart';
@@ -12,6 +11,7 @@ import '../../domain/models/enums.dart';
 import '../../domain/models/payment_method.dart' as domain;
 import '../local/mappers/payment_method_mapper.dart';
 import '../sync/sync_engine.dart';
+import 'profile_repository.dart';
 
 part 'payment_method_repository.g.dart';
 
@@ -127,6 +127,8 @@ PaymentMethodRepository paymentMethodRepository(Ref ref) =>
 /// All payment methods (incl. archived), for the management screen and
 /// every expense-form payment-method picker.
 @Riverpod(keepAlive: true)
-Stream<List<domain.PaymentMethod>> paymentMethods(Ref ref) => ref
-    .watch(paymentMethodRepositoryProvider)
-    .watchAll(AppConstants.seedHouseholdId);
+Stream<List<domain.PaymentMethod>> paymentMethods(Ref ref) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref.watch(paymentMethodRepositoryProvider).watchAll(householdId);
+}

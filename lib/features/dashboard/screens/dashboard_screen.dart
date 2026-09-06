@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/money/money.dart';
 import '../../../core/time/app_time.dart';
@@ -167,27 +166,28 @@ class _HouseholdSummaryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final previousMonth = AppTime.monthAfter(monthStart, -1);
 
     return SectionCard(
       title: 'This month',
       child: StreamBuilder<int>(
         stream: repo.watchExpenseTotal(
-          householdId: AppConstants.seedHouseholdId,
+          householdId: householdId,
           monthStart: monthStart,
         ),
         builder: (context, expenseSnap) {
           final expenseTotal = expenseSnap.data ?? 0;
           return StreamBuilder<int>(
             stream: repo.watchIncomeTotal(
-              householdId: AppConstants.seedHouseholdId,
+              householdId: householdId,
               monthStart: monthStart,
             ),
             builder: (context, incomeSnap) {
               final incomeTotal = incomeSnap.data ?? 0;
               return StreamBuilder<int>(
                 stream: repo.watchExpenseTotal(
-                  householdId: AppConstants.seedHouseholdId,
+                  householdId: householdId,
                   monthStart: previousMonth,
                 ),
                 builder: (context, prevSnap) {
@@ -419,6 +419,7 @@ class _MemberBreakdownCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final profiles = ref.watch(householdProfilesProvider).value ?? const [];
     final profilesById = {for (final p in profiles) p.id: p};
 
@@ -426,7 +427,7 @@ class _MemberBreakdownCard extends ConsumerWidget {
       title: 'Per member',
       child: StreamBuilder<List<GroupedTotal>>(
         stream: repo.watchExpenseByMember(
-          householdId: AppConstants.seedHouseholdId,
+          householdId: householdId,
           monthStart: monthStart,
         ),
         builder: (context, snapshot) {
@@ -551,6 +552,7 @@ class _TopCategoriesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final categoriesById = {for (final c in categories) c.id: c};
 
@@ -559,14 +561,14 @@ class _TopCategoriesCard extends ConsumerWidget {
       onSeeAll: () => context.go(AppRoutes.analytics),
       child: StreamBuilder<int>(
         stream: repo.watchExpenseTotal(
-          householdId: AppConstants.seedHouseholdId,
+          householdId: householdId,
           monthStart: monthStart,
         ),
         builder: (context, totalSnap) {
           final householdTotal = totalSnap.data ?? 0;
           return StreamBuilder<List<GroupedTotal>>(
             stream: repo.watchTopCategories(
-              householdId: AppConstants.seedHouseholdId,
+              householdId: householdId,
               monthStart: monthStart,
             ),
             builder: (context, snapshot) {
@@ -642,6 +644,7 @@ class _RecentActivityCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(reportRepositoryProvider);
+    final householdId = ref.watch(currentHouseholdIdProvider) ?? '';
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final profiles = ref.watch(householdProfilesProvider).value ?? const [];
     final categoriesById = {for (final c in categories) c.id: c};
@@ -650,9 +653,7 @@ class _RecentActivityCard extends ConsumerWidget {
     return SectionCard(
       title: 'Recent activity',
       child: StreamBuilder<List<domain.Expense>>(
-        stream: repo.watchRecentExpenses(
-          householdId: AppConstants.seedHouseholdId,
-        ),
+        stream: repo.watchRecentExpenses(householdId: householdId),
         builder: (context, snapshot) {
           final recent = snapshot.data ?? const [];
           if (recent.isEmpty) {

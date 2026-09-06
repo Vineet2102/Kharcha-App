@@ -72,6 +72,7 @@ void main() {
       recurringPostingEngine: recurringPostingEngine,
       outboxDao: outboxDao,
       publish: published.add,
+      getHouseholdId: () => 'household-1',
     );
   });
 

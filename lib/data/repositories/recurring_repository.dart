@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../domain/models/enums.dart';
@@ -12,6 +11,7 @@ import '../../domain/models/recurring_schedule.dart' as schedule;
 import '../local/mappers/recurring_rule_mapper.dart';
 import '../sync/recurring_posting_engine.dart';
 import '../sync/sync_engine.dart';
+import 'profile_repository.dart';
 
 part 'recurring_repository.g.dart';
 
@@ -166,6 +166,8 @@ RecurringRepository recurringRepository(Ref ref) => RecurringRepository(
 /// All non-deleted recurring rules for the household — backs the Recurring
 /// List (T-9.2) and the Dashboard's pending-confirmations card (T-9.5).
 @Riverpod(keepAlive: true)
-Stream<List<domain.RecurringRule>> householdRecurringRules(Ref ref) => ref
-    .watch(recurringRepositoryProvider)
-    .watchAll(AppConstants.seedHouseholdId);
+Stream<List<domain.RecurringRule>> householdRecurringRules(Ref ref) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref.watch(recurringRepositoryProvider).watchAll(householdId);
+}

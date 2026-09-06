@@ -58,6 +58,8 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
   String? get _currentUserId =>
       ref.read(supabaseClientProvider).auth.currentUser?.id;
 
+  String get _householdId => ref.read(currentHouseholdIdProvider) ?? '';
+
   // See the identical fix + rationale on `ExpenseDetailScreen._isAdmin`
   // (docs/DECISIONS.md) — `ref.watch`, not `ref.read`, so this rebuilds once
   // `currentProfileProvider` resolves instead of possibly latching a stale
@@ -238,7 +240,7 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
     final repo = ref.read(incomeRepositoryProvider);
     if (_existing == null) {
       await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: _householdId,
         userId: userId,
         amountPaise: money.paise,
         categoryId: _categoryId,

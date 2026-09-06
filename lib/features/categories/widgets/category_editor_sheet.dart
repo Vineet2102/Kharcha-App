@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/category_visuals.dart';
 import '../../../core/widgets/colour_swatch_picker.dart';
 import '../../../data/repositories/category_repository.dart';
+import '../../../data/repositories/profile_repository.dart';
 import '../../../domain/models/category.dart' as domain;
 import '../../../domain/models/enums.dart';
 
@@ -62,7 +62,7 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
     final repo = ref.read(categoryRepositoryProvider);
     if (widget.existing == null) {
       await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: ref.read(currentHouseholdIdProvider) ?? '',
         name: name,
         kind: _kind,
         iconKey: _iconKey,

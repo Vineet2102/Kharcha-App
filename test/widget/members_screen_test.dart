@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:kharcha/core/constants/app_constants.dart';
 import 'package:kharcha/core/db/app_database.dart';
 import 'package:kharcha/core/db/database_provider.dart';
 import 'package:kharcha/data/remote/supabase_client_provider.dart';
@@ -27,14 +26,14 @@ void main() {
     await seedProfile(
       db,
       id: 'u1',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Vineet',
       isAdmin: true,
     );
     await seedProfile(
       db,
       id: 'u2',
-      householdId: AppConstants.seedHouseholdId,
+      householdId: testHouseholdId,
       displayName: 'Rupesh',
       isAdmin: false,
     );

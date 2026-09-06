@@ -73,6 +73,8 @@ class _RecurringDetailScreenState extends ConsumerState<RecurringDetailScreen> {
 
   bool get _isAdmin => ref.read(currentProfileProvider).value?.isAdmin ?? false;
 
+  String get _householdId => ref.read(currentHouseholdIdProvider) ?? '';
+
   bool get _canEdit {
     if (_existing == null) return true;
     return _isAdmin || _existing!.userId == _currentUserId;
@@ -480,7 +482,7 @@ class _RecurringDetailScreenState extends ConsumerState<RecurringDetailScreen> {
     final repo = ref.read(recurringRepositoryProvider);
     if (_existing == null) {
       await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: _householdId,
         userId: userId,
         kind: _kind,
         title: _titleController.text.trim(),

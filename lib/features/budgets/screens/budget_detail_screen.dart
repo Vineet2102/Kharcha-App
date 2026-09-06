@@ -69,6 +69,8 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
 
   bool get _isAdmin => ref.read(currentProfileProvider).value?.isAdmin ?? false;
 
+  String get _householdId => ref.read(currentHouseholdIdProvider) ?? '';
+
   Future<void> _load() async {
     if (widget.id != null) {
       final budget = await ref
@@ -333,7 +335,7 @@ class _BudgetDetailScreenState extends ConsumerState<BudgetDetailScreen> {
           ref.read(currentProfileProvider).value?.id ?? _currentUserId;
       if (createdBy == null) return;
       final result = await repo.create(
-        householdId: AppConstants.seedHouseholdId,
+        householdId: _householdId,
         scope: _scope,
         userId: userId,
         categoryId: categoryId,

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/constants/app_constants.dart';
 import '../../core/db/app_database.dart';
 import '../../core/db/database_provider.dart';
 import '../../core/errors/failure.dart';
@@ -12,6 +11,7 @@ import '../../domain/models/category.dart' as domain;
 import '../../domain/models/enums.dart';
 import '../local/mappers/category_mapper.dart';
 import '../sync/sync_engine.dart';
+import 'profile_repository.dart';
 
 part 'category_repository.g.dart';
 
@@ -137,6 +137,8 @@ CategoryRepository categoryRepository(Ref ref) => CategoryRepository(
 /// All categories (incl. archived — callers filter as needed), for the
 /// management screen and every expense-form category picker.
 @Riverpod(keepAlive: true)
-Stream<List<domain.Category>> categories(Ref ref) => ref
-    .watch(categoryRepositoryProvider)
-    .watchAll(AppConstants.seedHouseholdId);
+Stream<List<domain.Category>> categories(Ref ref) {
+  final householdId = ref.watch(currentHouseholdIdProvider);
+  if (householdId == null) return Stream.value(const []);
+  return ref.watch(categoryRepositoryProvider).watchAll(householdId);
+}
