@@ -1989,3 +1989,27 @@ passes. That is sufficient for exactly the journey under test — splash →
 `client.auth.currentSession` being null — and the run log confirms
 `***** Supabase init completed *****` with a placeholder URL. Actually
 signing in from iOS against the real project remains unverified.
+
+### Bug found via a Phase 15 widget test: `_isAdmin` used `ref.read`, not `ref.watch`
+
+`ExpenseDetailScreen`/`IncomeDetailScreen`'s `_isAdmin` getter resolved
+`currentProfileProvider` (a `keepAlive` `Stream<Profile?>`) via `ref.read`
+instead of `ref.watch`. `currentProfileProvider` is asynchronous — even
+`Stream.value(profile)` needs a microtask to actually emit — so a `ref.read`
+taken while it is still `AsyncLoading` (its state on first ever
+initialization, before anything has resolved it) returns `null`/`false` and,
+because `ref.read` creates no subscription, is **never re-evaluated**: no
+future resolution of that provider triggers a rebuild of a widget that only
+ever `read` it. In the shipped app this was almost always masked, since the
+provider is `keepAlive` and typically already resolved by whatever screen
+the user was on before (Dashboard, Settings) — but an admin opening someone
+else's expense/income as the very first screen of a session (e.g. deep-link,
+or a cold start landing straight on a stale route) would be incorrectly
+stuck on the read-only view with no way to edit, contradicting spec §11.2/
+§11.6's "admin can edit anyone's". Caught by a new widget test
+(`test/widget/expense_detail_screen_test.dart`, T-15.2/T-15.4) that
+overrides `currentProfileProvider` and asserts the editable form actually
+renders — it failed even with the provider pre-seeded, because the getter
+never subscribed to it. Fixed by switching both getters to `ref.watch` (both
+call sites are already inside `build()`, so this is a pure fix with no other
+code path affected).

@@ -65,6 +65,14 @@ void main() {
   });
 
   group('Money arithmetic', () {
+    test('spec §13 Test 1: 0.1 + 0.2 never produces 0.30000000000000004 — '
+        'integer paise proves it', () {
+      final a = Money.fromRupees(0.1);
+      final b = Money.fromRupees(0.2);
+      expect((a + b).paise, 30);
+      expect((a + b).format(), contains('0.30'));
+    });
+
     test('add and subtract', () {
       final a = Money.fromRupees(100);
       final b = Money.fromRupees(30);

@@ -51,6 +51,11 @@ void stubSignedInAs(MockGoTrueClient auth, String userId) {
     ),
   );
   when(() => auth.currentSession).thenReturn(session);
+  // `GoTrueClient.currentUser` is a separate getter (`_currentSession?.user`
+  // in the real implementation) — a Mock does not derive it from the
+  // `currentSession` stub above, so any code reading `.currentUser` directly
+  // (e.g. `ExpenseDetailScreen._currentUserId`) needs it stubbed explicitly.
+  when(() => auth.currentUser).thenReturn(session.user);
   when(() => auth.onAuthStateChange)
       .thenAnswer((_) => Stream<AuthState>.empty());
 }

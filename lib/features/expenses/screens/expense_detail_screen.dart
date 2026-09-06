@@ -80,7 +80,17 @@ class _ExpenseDetailScreenState extends ConsumerState<ExpenseDetailScreen> {
   String? get _currentUserId =>
       ref.read(supabaseClientProvider).auth.currentUser?.id;
 
-  bool get _isAdmin => ref.read(currentProfileProvider).value?.isAdmin ?? false;
+  // `ref.watch`, not `ref.read`: this must rebuild once `currentProfileProvider`
+  // resolves. It's `keepAlive` and usually already warm by the time a user
+  // navigates here, but on a screen opened before anything else has read it
+  // (e.g. deep-linked straight in), a one-shot `ref.read` taken while the
+  // provider is still `AsyncLoading` would never be re-evaluated — no widget
+  // was watching it, so its later resolution triggers no rebuild here — and
+  // an admin would be incorrectly stuck on the read-only view. Found via a
+  // Phase 15 widget test (`expense_detail_screen_test.dart`); see
+  // docs/DECISIONS.md.
+  bool get _isAdmin =>
+      ref.watch(currentProfileProvider).value?.isAdmin ?? false;
 
   bool get _canEdit {
     if (_existing == null) return true;

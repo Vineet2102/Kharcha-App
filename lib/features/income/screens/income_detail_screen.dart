@@ -58,7 +58,12 @@ class _IncomeDetailScreenState extends ConsumerState<IncomeDetailScreen> {
   String? get _currentUserId =>
       ref.read(supabaseClientProvider).auth.currentUser?.id;
 
-  bool get _isAdmin => ref.read(currentProfileProvider).value?.isAdmin ?? false;
+  // See the identical fix + rationale on `ExpenseDetailScreen._isAdmin`
+  // (docs/DECISIONS.md) — `ref.watch`, not `ref.read`, so this rebuilds once
+  // `currentProfileProvider` resolves instead of possibly latching a stale
+  // `false` from before it did.
+  bool get _isAdmin =>
+      ref.watch(currentProfileProvider).value?.isAdmin ?? false;
 
   bool get _canEdit {
     if (_existing == null) return true;
