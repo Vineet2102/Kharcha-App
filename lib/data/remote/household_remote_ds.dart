@@ -26,6 +26,17 @@ class HouseholdRemoteDataSource {
   Future<Map<String, dynamic>?> fetch(String id) =>
       _client.from('households').select().eq('id', id).maybeSingle();
 
+  /// The household's current live invite code, if any (spec F-16's invite
+  /// section) — `inv_select`'s RLS policy scopes this to the caller's own
+  /// household, and at most one row is ever active at a time (T-M2.2's
+  /// `createInvite` revokes the previous one first).
+  Future<Map<String, dynamic>?> fetchActiveInvite(String householdId) => _client
+      .from('household_invites')
+      .select()
+      .eq('household_id', householdId)
+      .eq('is_active', true)
+      .maybeSingle();
+
   Future<Map<String, dynamic>> createHousehold(String name) async =>
       await _client.rpc('create_household', params: {'p_name': name})
           as Map<String, dynamic>;

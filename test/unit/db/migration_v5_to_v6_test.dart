@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -17,20 +18,21 @@ class _FakePathProvider extends PathProviderPlatform
   Future<String?> getApplicationDocumentsPath() async => dir;
 }
 
-/// Regression test for Phase 14 (T-14.2/T-14.3): `household`/`profile`
-/// gain push support, which needs the same `base_updated_at` CAS column
-/// every other push-capable table already has. This exercises the actual
-/// v4 -> v5 upgrade against a hand-built v4 file (rather than an in-memory
-/// `AppDatabase.forTesting`, which always starts fresh at the latest
-/// version) to prove existing family data — including a household name a
-/// member had already edited offline before this upgrade shipped — survives
-/// the new column being added.
+/// Regression test for Phase M2 (T-M2.7/T-M2.14): `sync_meta` gains
+/// `household_id` so the sync engine can detect a join/leave/switch and
+/// wipe-and-refetch instead of reconciling one household's rows against
+/// another's cursors. This exercises the actual v5 -> v6 upgrade against a
+/// hand-built v5 file (rather than an in-memory `AppDatabase.forTesting`,
+/// which always starts fresh at the latest version) to prove: (1) existing
+/// household data is untouched, and (2) every pull cursor is reset — the
+/// only way to force exactly one full refetch, since no pre-v6 install ever
+/// recorded which household its cursors belonged to.
 void main() {
   late Directory tempDir;
   late String dbPath;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('kharcha_migration_v5_test');
+    tempDir = Directory.systemTemp.createTempSync('kharcha_migration_v6_test');
     dbPath = p.join(tempDir.path, 'kharcha.sqlite');
   });
 
@@ -38,9 +40,8 @@ void main() {
     tempDir.deleteSync(recursive: true);
   });
 
-  test('upgrading a real v4 database backfills base_updated_at for a clean '
-      'household/profile row and leaves it null for a still-dirty one, '
-      'without losing any data', () async {
+  test('upgrading a real v5 database resets every sync_meta cursor but leaves '
+      "the household's existing rows untouched", () async {
     final raw = sqlite3.sqlite3.open(dbPath);
     raw.execute('''
         CREATE TABLE households (
@@ -52,7 +53,8 @@ void main() {
           updated_at INTEGER NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'synced',
           local_updated_at INTEGER NULL,
-          is_dirty INTEGER NOT NULL DEFAULT 0
+          is_dirty INTEGER NOT NULL DEFAULT 0,
+          base_updated_at TEXT NULL
         );
       ''');
     raw.execute('''
@@ -67,11 +69,10 @@ void main() {
           updated_at INTEGER NOT NULL,
           sync_status TEXT NOT NULL DEFAULT 'synced',
           local_updated_at INTEGER NULL,
-          is_dirty INTEGER NOT NULL DEFAULT 0
+          is_dirty INTEGER NOT NULL DEFAULT 0,
+          base_updated_at TEXT NULL
         );
       ''');
-    // The 7 already-push-capable tables only need enough of the v4 shape
-    // for the migration's (no-op, for them) upgrade path to open at all.
     for (final table in [
       'categories',
       'payment_methods',
@@ -105,8 +106,6 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
-    // Phase M2's v6 step (`migration_v5_to_v6_test.dart`) ALTERs this table
-    // too, so it must exist here even though this test predates it.
     raw.execute('''
         CREATE TABLE sync_meta (
           entity TEXT NOT NULL PRIMARY KEY,
@@ -114,47 +113,60 @@ void main() {
           last_success_at INTEGER NULL
         );
       ''');
-    final cleanUpdatedAt =
-        DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
+    final now = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;
     raw.execute(
-      'INSERT INTO households (id, name, created_at, updated_at, is_dirty) '
-      "VALUES ('hh1', 'Panicker Family', ?, ?, 0)",
-      [cleanUpdatedAt, cleanUpdatedAt],
+      "INSERT INTO households (id, name, created_at, updated_at) "
+      "VALUES ('hh1', 'Panicker Family', ?, ?)",
+      [now, now],
     );
-    final dirtyUpdatedAt =
-        DateTime.utc(2026, 1, 2).millisecondsSinceEpoch ~/ 1000;
+    raw.execute("INSERT INTO expenses (id, updated_at) VALUES ('exp1', ?)", [
+      now,
+    ]);
     raw.execute(
-      'INSERT INTO profiles '
-      '(id, household_id, display_name, created_at, updated_at, is_dirty) '
-      "VALUES ('u1', 'hh1', 'Vineet (edited)', ?, ?, 1)",
-      [dirtyUpdatedAt, dirtyUpdatedAt],
+      "INSERT INTO sync_meta (entity, last_pulled_at, last_success_at) "
+      "VALUES ('expense', ?, ?)",
+      [now, now],
     );
-    raw.execute('PRAGMA user_version = 4;');
+    raw.execute(
+      "INSERT INTO sync_meta (entity, last_pulled_at, last_success_at) "
+      "VALUES ('household', ?, ?)",
+      [now, now],
+    );
+    raw.execute('PRAGMA user_version = 5;');
     raw.close();
 
     PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
     final db = AppDatabase();
-    // Any query forces drift to open the file and run onUpgrade.
     final households = await db.select(db.households).get();
-    final profiles = await db.select(db.profiles).get();
-    expect(households, hasLength(1));
-    expect(profiles, hasLength(1));
+    // The `expenses` table's real schema has several other NOT NULL
+    // columns this fixture doesn't bother reproducing (this test isn't
+    // about expenses' own shape) — a raw count sidesteps Drift's full row
+    // mapper while still proving the row itself wasn't dropped.
+    final expenseCount = await db
+        .customSelect(
+          'SELECT COUNT(*) AS c FROM expenses WHERE id = ?',
+          variables: [Variable('exp1')],
+        )
+        .getSingle();
+    final syncMeta = await db.select(db.syncMeta).get();
 
-    expect(households.single.name, 'Panicker Family');
     expect(
-      households.single.baseUpdatedAt,
-      isNotNull,
-      reason: 'a clean row backfills its base from its own updated_at',
+      households.single.name,
+      'Panicker Family',
+      reason: 'existing household data survives the upgrade untouched',
     );
-
-    expect(profiles.single.displayName, 'Vineet (edited)');
     expect(
-      profiles.single.baseUpdatedAt,
-      isNull,
+      expenseCount.read<int>('c'),
+      1,
+      reason: 'existing expense rows survive the upgrade untouched',
+    );
+    expect(
+      syncMeta,
+      isEmpty,
       reason:
-          "a dirty row's updated_at is its own unpushed edit, not a "
-          'confirmed server value, so the backfill leaves it null — it '
-          'falls back to an unconditional push once, then self-heals',
+          'every cursor is reset (not backfilled/guessed) so the next '
+          'sync performs exactly one full pull and stamps the real '
+          'household id itself',
     );
 
     await db.close();

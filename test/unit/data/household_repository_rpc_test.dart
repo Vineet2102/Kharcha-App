@@ -26,24 +26,30 @@ PostgrestException _named(String code) =>
 /// Postgrest builder chain underneath it — see docs/DECISIONS.md).
 ///
 /// Every method here is a pure network call — no Drift write, no outbox
-/// entry, no `_triggerSync()` — so these tests only assert the `Result`
-/// shape and the exact RPC arguments, never touching the database.
-/// [ErrorMapper] doesn't yet recognise these v2.0 error codes (that's
-/// T-M2.3's job), so every error case here asserts `result.isErr` rather
-/// than a specific `Failure` subtype — pinning that now would just have to
-/// be redone the moment T-M2.3 lands.
+/// entry — so these tests only assert the `Result` shape and the exact RPC
+/// arguments, never touching the database. `createHousehold`/`joinHousehold`/
+/// `leaveHousehold`/`deleteHousehold` do call `_triggerSync()` on success
+/// (T-M2.7: the caller's household membership just changed server-side, and
+/// the sync engine's own household-change check is what actually notices
+/// and reconciles it) — tracked via [triggerSyncCalls] below and asserted on
+/// those four groups' success cases. [ErrorMapper] doesn't yet recognise
+/// these v2.0 error codes (that's T-M2.3's job), so every error case here
+/// asserts `result.isErr` rather than a specific `Failure` subtype — pinning
+/// that now would just have to be redone the moment T-M2.3 lands.
 void main() {
   late MockHouseholdRemoteDataSource remote;
   late HouseholdRepository repo;
+  late int triggerSyncCalls;
 
   setUp(() {
     remote = MockHouseholdRemoteDataSource();
+    triggerSyncCalls = 0;
     // `updateName`'s Drift path is untouched by every test below — a real
     // in-memory database is still wired so nothing crashes if it ever were.
     repo = HouseholdRepository(
       remote,
       AppDatabase.forTesting(NativeDatabase.memory()),
-      () {},
+      () => triggerSyncCalls++,
     );
   });
 
@@ -64,6 +70,7 @@ void main() {
       expect(result.valueOrNull!.name, 'My Family');
       expect(result.valueOrNull!.inviteCode, 'ABCD1234');
       verify(() => remote.createHousehold('My Family')).called(1);
+      expect(triggerSyncCalls, 1);
     });
 
     for (final code in [
@@ -94,6 +101,7 @@ void main() {
       expect(result.valueOrNull!.householdId, 'hh1');
       expect(result.valueOrNull!.name, 'My Family');
       verify(() => remote.joinHousehold('ABCD1234')).called(1);
+      expect(triggerSyncCalls, 1);
     });
 
     for (final code in [
@@ -120,6 +128,7 @@ void main() {
 
       expect(result.isOk, isTrue);
       verify(() => remote.leaveHousehold()).called(1);
+      expect(triggerSyncCalls, 1);
     });
 
     for (final code in ['not_in_household', 'last_admin']) {
@@ -208,22 +217,37 @@ void main() {
   });
 
   group('createInvite', () {
-    test('success returns the code, defaulting days/maxUses', () async {
+    Map<String, dynamic> inviteJson(String code) => {
+      'id': 'inv1',
+      'code': code,
+      'expires_at': '2026-10-01T00:00:00Z',
+      'max_uses': 20,
+      'use_count': 0,
+    };
+
+    test('success creates then re-fetches the active invite, defaulting '
+        'days/maxUses', () async {
       when(() => remote.createInvite(days: 30, maxUses: 20))
           .thenAnswer((_) async => 'WXYZ5678');
+      when(() => remote.fetchActiveInvite('hh1'))
+          .thenAnswer((_) async => inviteJson('WXYZ5678'));
 
-      final result = await repo.createInvite();
+      final result = await repo.createInvite(householdId: 'hh1');
 
       expect(result.isOk, isTrue);
-      expect(result.valueOrNull, 'WXYZ5678');
+      expect(result.valueOrNull!.code, 'WXYZ5678');
+      expect(result.valueOrNull!.maxUses, 20);
       verify(() => remote.createInvite(days: 30, maxUses: 20)).called(1);
+      verify(() => remote.fetchActiveInvite('hh1')).called(1);
     });
 
     test('a custom expiry/use-cap is passed straight through', () async {
       when(() => remote.createInvite(days: 7, maxUses: 5))
           .thenAnswer((_) async => 'WXYZ5678');
+      when(() => remote.fetchActiveInvite('hh1'))
+          .thenAnswer((_) async => inviteJson('WXYZ5678'));
 
-      await repo.createInvite(days: 7, maxUses: 5);
+      await repo.createInvite(householdId: 'hh1', days: 7, maxUses: 5);
 
       verify(() => remote.createInvite(days: 7, maxUses: 5)).called(1);
     });
@@ -237,11 +261,48 @@ void main() {
           ),
         ).thenThrow(_named(code));
 
-        final result = await repo.createInvite();
+        final result = await repo.createInvite(householdId: 'hh1');
 
         expect(result.isErr, isTrue);
       });
     }
+  });
+
+  group('fetchActiveInvite', () {
+    test('returns the active invite when one exists', () async {
+      when(() => remote.fetchActiveInvite('hh1')).thenAnswer(
+        (_) async => {
+          'id': 'inv1',
+          'code': 'ABCD1234',
+          'expires_at': '2026-10-01T00:00:00Z',
+          'max_uses': 20,
+          'use_count': 2,
+        },
+      );
+
+      final result = await repo.fetchActiveInvite('hh1');
+
+      expect(result.isOk, isTrue);
+      expect(result.valueOrNull!.code, 'ABCD1234');
+      expect(result.valueOrNull!.useCount, 2);
+    });
+
+    test('returns null when no invite is active', () async {
+      when(() => remote.fetchActiveInvite('hh1')).thenAnswer((_) async => null);
+
+      final result = await repo.fetchActiveInvite('hh1');
+
+      expect(result.isOk, isTrue);
+      expect(result.valueOrNull, isNull);
+    });
+
+    test('an unexpected failure surfaces as an error Result', () async {
+      when(() => remote.fetchActiveInvite('hh1')).thenThrow(Exception('boom'));
+
+      final result = await repo.fetchActiveInvite('hh1');
+
+      expect(result.isErr, isTrue);
+    });
   });
 
   group('revokeInvites', () {
@@ -290,6 +351,7 @@ void main() {
 
       expect(result.isOk, isTrue);
       verify(() => remote.deleteHousehold()).called(1);
+      expect(triggerSyncCalls, 1);
     });
 
     for (final code in [

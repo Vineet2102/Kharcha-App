@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:kharcha/core/db/daos/outbox_dao.dart';
+import 'package:kharcha/core/db/daos/sync_meta_dao.dart';
 import 'package:kharcha/core/network/connectivity_service.dart';
 import 'package:kharcha/data/sync/outbox_processor.dart';
 import 'package:kharcha/data/sync/pull_service.dart';
@@ -33,6 +34,8 @@ class MockRecurringPostingEngine extends Mock
 
 class MockOutboxDao extends Mock implements OutboxDao {}
 
+class MockSyncMetaDao extends Mock implements SyncMetaDao {}
+
 void main() {
   late MockSupabaseClient client;
   late MockGoTrueClient auth;
@@ -42,7 +45,11 @@ void main() {
   late MockRealtimeListener realtimeListener;
   late MockRecurringPostingEngine recurringPostingEngine;
   late MockOutboxDao outboxDao;
+  late MockSyncMetaDao syncMetaDao;
   late List<SyncState> published;
+  late int refreshOwnProfileCalls;
+  late int wipeHouseholdDataCalls;
+  late String? householdId;
   late SyncEngine engine;
 
   setUp(() {
@@ -61,8 +68,14 @@ void main() {
     outboxDao = MockOutboxDao();
     when(() => outboxDao.pendingCount()).thenAnswer((_) async => 0);
     when(() => outboxDao.hasStuckEntries()).thenAnswer((_) async => false);
+    syncMetaDao = MockSyncMetaDao();
+    when(() => syncMetaDao.anyStoredHouseholdId())
+        .thenAnswer((_) async => 'household-1');
 
     published = [];
+    refreshOwnProfileCalls = 0;
+    wipeHouseholdDataCalls = 0;
+    householdId = 'household-1';
     engine = SyncEngine(
       client: client,
       connectivity: connectivity,
@@ -71,8 +84,15 @@ void main() {
       realtimeListener: realtimeListener,
       recurringPostingEngine: recurringPostingEngine,
       outboxDao: outboxDao,
+      syncMetaDao: syncMetaDao,
       publish: published.add,
-      getHouseholdId: () => 'household-1',
+      getHouseholdId: () => householdId,
+      refreshOwnProfile: () async {
+        refreshOwnProfileCalls++;
+      },
+      wipeHouseholdData: () async {
+        wipeHouseholdDataCalls++;
+      },
     );
   });
 
@@ -177,6 +197,78 @@ void main() {
     await engine.sync();
 
     verifyNever(() => pullService.pullAll(any()));
+  });
+
+  group('household change (spec §9.6 rule 3, T-M2.7)', () {
+    setUp(() {
+      when(() => connectivity.isOnline).thenAnswer((_) async => true);
+      when(() => outboxProcessor.process()).thenAnswer((_) async {});
+      when(() => pullService.pullAll(any())).thenAnswer((_) async {});
+    });
+
+    test('a stored household id different from the current one wipes local '
+        'data before the outbox is pushed', () async {
+      when(() => syncMetaDao.anyStoredHouseholdId())
+          .thenAnswer((_) async => 'household-OLD');
+
+      await engine.sync();
+
+      expect(wipeHouseholdDataCalls, 1);
+      verify(() => outboxProcessor.process()).called(2);
+    });
+
+    test('no stored household id (fresh install) does not wipe', () async {
+      when(() => syncMetaDao.anyStoredHouseholdId())
+          .thenAnswer((_) async => null);
+
+      await engine.sync();
+
+      expect(wipeHouseholdDataCalls, 0);
+    });
+
+    test('the same stored household id does not wipe', () async {
+      when(() => syncMetaDao.anyStoredHouseholdId())
+          .thenAnswer((_) async => 'household-1');
+
+      await engine.sync();
+
+      expect(wipeHouseholdDataCalls, 0);
+    });
+
+    test('leaving a household (current id becomes null) still wipes the '
+        'now-stale local data', () async {
+      householdId = null;
+      when(() => syncMetaDao.anyStoredHouseholdId())
+          .thenAnswer((_) async => 'household-1');
+
+      await engine.sync();
+
+      expect(wipeHouseholdDataCalls, 1);
+      expect(published.last, isA<SyncIdle>());
+    });
+
+    test('the own profile is refreshed before household id is trusted, even '
+        'with no household at all', () async {
+      householdId = null;
+      when(() => syncMetaDao.anyStoredHouseholdId())
+          .thenAnswer((_) async => null);
+
+      await engine.sync();
+
+      expect(refreshOwnProfileCalls, 1);
+      expect(wipeHouseholdDataCalls, 0);
+      expect(published.last, isA<SyncIdle>());
+    });
+
+    test('offline never refreshes the profile or checks for a household '
+        'change', () async {
+      when(() => connectivity.isOnline).thenAnswer((_) async => false);
+
+      await engine.sync();
+
+      expect(refreshOwnProfileCalls, 0);
+      verifyNever(() => syncMetaDao.anyStoredHouseholdId());
+    });
   });
 
   group('start()/stop()', () {

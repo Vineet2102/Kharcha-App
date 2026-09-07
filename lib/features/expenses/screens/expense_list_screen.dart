@@ -443,7 +443,14 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('No expenses match these filters.'),
+          // T-M2.10: a genuinely empty household (no filters applied at
+          // all) reads oddly with filter-specific copy — distinguish it
+          // from "your filters excluded everything".
+          Text(
+            hasFilters
+                ? 'No expenses match these filters.'
+                : 'No expenses yet — tap + to add your first one.',
+          ),
           if (hasFilters) ...[
             const SizedBox(height: 8),
             TextButton(onPressed: onClear, child: const Text('Clear filters')),

@@ -38,6 +38,12 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final month = ref.watch(selectedMonthControllerProvider);
+    // Spec D20/T-M2.10: a household of one is a first-class case, not a
+    // degraded family — comparing a solo user to themselves is noise, so
+    // the per-member breakdown card is hidden entirely rather than shown
+    // with nothing to compare against.
+    final isSolo =
+        (ref.watch(householdProfilesProvider).value?.length ?? 0) <= 1;
 
     return Scaffold(
       appBar: AppBar(title: MonthSelector(month: month)),
@@ -52,8 +58,10 @@ class DashboardScreen extends ConsumerWidget {
             _BudgetProgressCard(monthStart: month),
             const SizedBox(height: 12),
             const _PendingRecurringCard(),
-            const SizedBox(height: 12),
-            _MemberBreakdownCard(monthStart: month),
+            if (!isSolo) ...[
+              const SizedBox(height: 12),
+              _MemberBreakdownCard(monthStart: month),
+            ],
             const SizedBox(height: 12),
             _TopCategoriesCard(monthStart: month),
             const SizedBox(height: 12),

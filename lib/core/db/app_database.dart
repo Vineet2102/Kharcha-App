@@ -70,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -165,6 +165,28 @@ class AppDatabase extends _$AppDatabase {
         await customStatement(
           'UPDATE profiles SET base_updated_at = updated_at WHERE is_dirty = 0',
         );
+      }
+      // v5 -> v6 (Phase M2, T-M2.7/T-M2.14): sync_meta gains household_id,
+      // so the sync engine can detect a join/leave/switch and wipe-and-
+      // refetch instead of quietly reconciling one household's rows against
+      // another's cursors. Every pre-v6 install implicitly synced against
+      // v1.0's single hardcoded household, but nothing on the client ever
+      // recorded which one — so cursors are reset (not the tables
+      // themselves) rather than guessed, forcing exactly one full pull on
+      // the next sync to reliably re-derive and stamp the real value. The
+      // user's existing expenses/etc. rows are untouched; only the pull
+      // cursors that decide what's "new since last time" are cleared.
+      if (from < 6) {
+        await m.addColumn(syncMeta, syncMeta.householdId);
+        await customStatement('DELETE FROM sync_meta');
+      }
+      // v6 -> v7 (Phase M2, T-M2.9): profiles gains joined_at, mirroring the
+      // server column added back in T-M1.1's 0011_multitenant_core.sql —
+      // never wired into the local mirror until the household management
+      // screen needed to show it. A plain nullable add; existing rows read
+      // back null until their next pull refreshes them with the real value.
+      if (from < 7) {
+        await m.addColumn(profiles, profiles.joinedAt);
       }
     },
   );

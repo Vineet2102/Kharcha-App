@@ -46,9 +46,9 @@ void main() {
           builder: (context, state) => const SettingsScreen(),
         ),
         GoRoute(
-          path: AppRoutes.members,
+          path: AppRoutes.household,
           builder: (context, state) =>
-              const Scaffold(body: Text('Members screen')),
+              const Scaffold(body: Text('Household screen')),
         ),
       ],
     );
@@ -113,7 +113,9 @@ void main() {
     await disposeAndFlush(tester);
   });
 
-  testWidgets('an admin can edit the household name (T-14.1)', (tester) async {
+  testWidgets('tapping Household navigates to the household screen (T-M2.9)', (
+    tester,
+  ) async {
     await seedProfile(
       db,
       id: 'u1',
@@ -128,69 +130,7 @@ void main() {
     await tester.tap(find.text('Panicker Family'));
     await tester.pumpAndSettle();
 
-    // Two matches at this point, not one: the tile's own (static) subtitle
-    // stays in the tree behind the now-open dialog, whose title is the same
-    // literal text — scope to the dialog itself to check it actually opened.
-    expect(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text('Household name'),
-      ),
-      findsOneWidget,
-    );
-    await tester.enterText(find.byType(TextField), 'The Panickers');
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
-
-    final row = await db.householdDao.findById(testHouseholdId);
-    expect(row!.name, 'The Panickers');
-
-    await disposeAndFlush(tester);
-  });
-
-  testWidgets('a member cannot edit the household name (T-14.1)', (
-    tester,
-  ) async {
-    await seedProfile(
-      db,
-      id: 'u2',
-      householdId: testHouseholdId,
-      displayName: 'Rupesh',
-      isAdmin: false,
-    );
-    stubSignedInAs(auth, 'u2');
-
-    await pumpSettings(tester);
-
-    await tester.tap(find.text('Panicker Family'));
-    await tester.pumpAndSettle();
-
-    // The tile's own subtitle ("Household name") is always shown — a
-    // member just gets a disabled `onTap`, so the real assertion is that no
-    // edit dialog opened at all.
-    expect(find.byType(AlertDialog), findsNothing);
-
-    await disposeAndFlush(tester);
-  });
-
-  testWidgets('tapping Members navigates to the members screen (T-14.3)', (
-    tester,
-  ) async {
-    await seedProfile(
-      db,
-      id: 'u1',
-      householdId: testHouseholdId,
-      displayName: 'Vineet',
-      isAdmin: true,
-    );
-    stubSignedInAs(auth, 'u1');
-
-    await pumpSettings(tester);
-
-    await tester.tap(find.text('Members'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Members screen'), findsOneWidget);
+    expect(find.text('Household screen'), findsOneWidget);
 
     await disposeAndFlush(tester);
   });

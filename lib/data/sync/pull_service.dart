@@ -74,6 +74,7 @@ class PullService {
         entity: Value(adapter.entityKey),
         lastPulledAt: Value(maxSeen ?? meta?.lastPulledAt),
         lastSuccessAt: Value(DateTime.now().toUtc()),
+        householdId: Value(householdId),
       ),
     );
   }

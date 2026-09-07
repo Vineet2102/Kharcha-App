@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:kharcha/core/db/app_database.dart';
+import 'package:kharcha/data/remote/household_remote_ds.dart';
 import 'package:kharcha/data/sync/sync_engine.dart';
 
 /// The fixed household id every screen-level widget test seeds against —
@@ -23,6 +24,14 @@ const testHouseholdId = '11111111-1111-1111-1111-111111111111';
 class MockSupabaseClient extends Mock implements SupabaseClient {}
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
+
+/// `HouseholdRepository`'s membership RPCs (T-M2.2) all go through this thin
+/// seam — mocking it here (rather than a raw `SupabaseClient.rpc()` chain)
+/// lets a screen test exercise the real `HouseholdRepository`'s
+/// Result-wrapping/error-mapping logic while controlling the network edge,
+/// same convention as `household_repository_rpc_test.dart`.
+class MockHouseholdRemoteDataSource extends Mock
+    implements HouseholdRemoteDataSource {}
 
 /// A `SyncEngine` that never touches the network — every write-path
 /// repository (`ProfileRepository`, `HouseholdRepository`, ...) calls

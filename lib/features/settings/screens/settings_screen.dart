@@ -9,7 +9,6 @@ import '../../../data/repositories/household_repository.dart';
 import '../../../data/repositories/profile_repository.dart';
 import '../../../data/repositories/update_check_repository.dart';
 import '../../../data/sync/sync_engine.dart';
-import '../../../domain/models/household.dart' as domain;
 import '../../../routing/routes.dart';
 import '../../auth/controllers/sign_out_controller.dart';
 import 'change_password_dialog.dart';
@@ -47,29 +46,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (confirmed != true) return;
     await ref.read(signOutControllerProvider.notifier).signOut();
-  }
-
-  Future<void> _editHouseholdName(domain.Household household) async {
-    final controller = TextEditingController(text: household.name);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Household name'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (name == null || name.isEmpty || name == household.name) return;
-    await ref.read(householdRepositoryProvider).updateName(household.id, name);
   }
 
   Future<void> _syncNow() async {
@@ -133,7 +109,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final profile = ref.watch(currentProfileProvider).value;
     final household = ref.watch(householdProvider).value;
-    final isAdmin = profile?.isAdmin == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -167,15 +142,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.home_outlined),
                 title: Text(household?.name ?? '—'),
-                subtitle: const Text('Household name'),
-                onTap: (isAdmin && household != null)
-                    ? () => _editHouseholdName(household)
-                    : null,
-              ),
-              ListTile(
-                leading: const Icon(Icons.group_outlined),
-                title: const Text('Members'),
-                onTap: () => context.push(AppRoutes.members),
+                subtitle: const Text('Household'),
+                onTap: () => context.push(AppRoutes.household),
               ),
               const ListTile(
                 leading: Icon(Icons.currency_rupee),

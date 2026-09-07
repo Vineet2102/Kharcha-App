@@ -1,15 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/db/database_provider.dart';
 import '../../../core/errors/failure.dart';
-import '../../../core/logging/app_logger.dart';
 import '../../../core/result/result.dart';
+import '../../../data/local/receipt_cache.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../../../data/sync/sync_engine.dart';
 
@@ -41,26 +37,8 @@ class SignOutController extends _$SignOutController {
     ref.read(syncEngineProvider).stop();
     final result = await ref.read(authRepositoryProvider).signOut();
     await ref.read(appDatabaseProvider).wipeAll();
-    await _clearReceiptCache();
+    await clearReceiptCache();
     state = const AsyncData(null);
     return result;
-  }
-
-  Future<void> _clearReceiptCache() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final cacheDir = Directory(
-        p.join(dir.path, AppConstants.receiptsCacheDir),
-      );
-      if (await cacheDir.exists()) {
-        await cacheDir.delete(recursive: true);
-      }
-    } catch (error, stackTrace) {
-      AppLogger.instance.warn(
-        'Failed to clear receipt cache on sign-out',
-        error,
-        stackTrace,
-      );
-    }
   }
 }

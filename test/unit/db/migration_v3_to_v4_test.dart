@@ -111,6 +111,15 @@ void main() {
           PRIMARY KEY (id)
         );
       ''');
+    // Phase M2's v6 step (`migration_v5_to_v6_test.dart`) ALTERs this table
+    // too, so it must exist here even though this test predates it.
+    raw.execute('''
+        CREATE TABLE sync_meta (
+          entity TEXT NOT NULL PRIMARY KEY,
+          last_pulled_at INTEGER NULL,
+          last_success_at INTEGER NULL
+        );
+      ''');
     // A row with a populated (lossy) base_updated_at, exactly what Gate
     // 4's own backfill would have produced for a clean row.
     final syncedAt = DateTime.utc(2026, 1, 1).millisecondsSinceEpoch ~/ 1000;

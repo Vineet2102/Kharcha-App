@@ -35,7 +35,7 @@ const _syncStuckId = 900004;
 /// the foreground, which re-triggers this same re-evaluation and cancels
 /// the now-redundant alarm. The other three (monthly summary, recurring
 /// due, sync stuck) all need content that can only be computed live
-/// ("family spent ₹X", "N items waiting", "outbox stuck") — there's no way
+/// ("household spent ₹X", "N items waiting", "outbox stuck") — there's no way
 /// to bake that into a notification scheduled ahead of time, so they're
 /// evaluated and, if due, shown immediately instead, each deduplicated in
 /// `shared_preferences` so a later resume doesn't re-fire the same one.
@@ -125,7 +125,7 @@ class NotificationScheduler {
       id: _monthlySummaryId,
       title: 'Monthly summary',
       body:
-          '$monthName: family spent ${Money(expensePaise).format()}, '
+          '$monthName: household spent ${Money(expensePaise).format()}, '
           'saved ${Money(incomePaise - expensePaise).format()}',
       channelId: 'monthly_summary',
       channelName: 'Monthly summary',

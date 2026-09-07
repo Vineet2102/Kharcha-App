@@ -14,6 +14,7 @@ abstract class Profile with _$Profile {
     @Default(MemberRole.member) MemberRole role,
     @JsonKey(name: 'colour_hex') @Default('#6750A4') String colourHex,
     @JsonKey(name: 'is_active') @Default(true) bool isActive,
+    @JsonKey(name: 'joined_at') DateTime? joinedAt,
     @JsonKey(name: 'created_at') required DateTime createdAt,
     @JsonKey(name: 'updated_at') required DateTime updatedAt,
   }) = _Profile;

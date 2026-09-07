@@ -60,12 +60,17 @@ void main() {
   testWidgets('signed-in user boots straight to the dashboard (Gate 2/3/6)', (
     tester,
   ) async {
+    // Confirmed (T-M2.8's three-state gate now checks this) and already in
+    // a household (seeded below) — a plain signed-in session with neither
+    // is no longer enough to reach the dashboard; that account correctly
+    // lands on /onboarding instead (see the router's own doc comment).
     final user = User(
       id: 'u1',
       appMetadata: const {},
       userMetadata: const {},
       aud: 'authenticated',
       createdAt: '2026-01-01T00:00:00Z',
+      emailConfirmedAt: '2026-01-01T00:00:00Z',
     );
     final session = Session(
       accessToken: 'token',
@@ -73,6 +78,27 @@ void main() {
       user: user,
     );
     when(() => auth.currentSession).thenReturn(session);
+    when(() => auth.currentUser).thenReturn(user);
+
+    final now = DateTime.now().toUtc();
+    const householdId = 'hh1';
+    await db.householdDao.upsert(
+      HouseholdsCompanion.insert(
+        id: householdId,
+        name: 'Test household',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
+    await db.profileDao.upsert(
+      ProfilesCompanion.insert(
+        id: user.id,
+        householdId: householdId,
+        displayName: 'Test User',
+        createdAt: now,
+        updatedAt: now,
+      ),
+    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -86,6 +112,83 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dashboard'), findsWidgets);
+
+    await _disposeAndFlush(tester);
+  });
+
+  testWidgets('a signed-in but unconfirmed user is redirected to /verify-email '
+      '(T-M2.8)', (tester) async {
+    final user = User(
+      id: 'u1',
+      appMetadata: const {},
+      userMetadata: const {},
+      aud: 'authenticated',
+      createdAt: '2026-01-01T00:00:00Z',
+      // emailConfirmedAt deliberately left null.
+    );
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: user,
+    );
+    when(() => auth.currentSession).thenReturn(session);
+    when(() => auth.currentUser).thenReturn(user);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          supabaseClientProvider.overrideWithValue(client),
+          appDatabaseProvider.overrideWithValue(db),
+        ],
+        child: const KharchaApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Resend email'), findsOneWidget);
+    expect(find.text('Dashboard'), findsNothing);
+
+    // VerifyEmailScreen (T-M2.5) runs a periodic Timer while mounted
+    // (polling for confirmation) — disposing the tree cancels it, same
+    // precedent as the Dashboard's Drift-stream teardown below.
+    await _disposeAndFlush(tester);
+  });
+
+  testWidgets('a confirmed user with no household is redirected to /onboarding '
+      '(T-M2.8)', (tester) async {
+    final user = User(
+      id: 'u1',
+      appMetadata: const {},
+      userMetadata: const {},
+      aud: 'authenticated',
+      createdAt: '2026-01-01T00:00:00Z',
+      emailConfirmedAt: '2026-01-01T00:00:00Z',
+    );
+    final session = Session(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      user: user,
+    );
+    when(() => auth.currentSession).thenReturn(session);
+    when(() => auth.currentUser).thenReturn(user);
+    // No household/profile seeded in `db` — a brand-new, confirmed account
+    // that hasn't created or joined one yet.
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          supabaseClientProvider.overrideWithValue(client),
+          appDatabaseProvider.overrideWithValue(db),
+        ],
+        child: const KharchaApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome to Kharcha'), findsOneWidget);
+    expect(find.text('Create a household'), findsOneWidget);
+    expect(find.text('Join a household'), findsOneWidget);
+    expect(find.text('Dashboard'), findsNothing);
 
     await _disposeAndFlush(tester);
   });

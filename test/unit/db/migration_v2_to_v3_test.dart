@@ -25,18 +25,20 @@ class _FakePathProvider extends PathProviderPlatform
 /// version) to prove existing family data survives the upgrade instead of
 /// asserting it in the abstract.
 ///
-/// `AppDatabase()`'s `schemaVersion` has since moved to 5 (Gate 10's
-/// timestamp-precision fix to 4, then Phase 14's `household`/`profile`
-/// push support to 5 — see `migration_v3_to_v4_test.dart` and
-/// `migration_v4_to_v5_test.dart`), so opening this hand-built v2 file now
-/// exercises the full v2 -> v3 -> v4 -> v5 chain in one open, the same as a
-/// real device that hasn't synced in a while. The v4 step unconditionally
+/// `AppDatabase()`'s `schemaVersion` has since moved to 6 (Gate 10's
+/// timestamp-precision fix to 4, Phase 14's `household`/`profile` push
+/// support to 5, Phase M2's `sync_meta.household_id` to 6 — see
+/// `migration_v3_to_v4_test.dart`, `migration_v4_to_v5_test.dart`, and
+/// `migration_v5_to_v6_test.dart`), so opening this hand-built v2 file now
+/// exercises the full v2 -> v3 -> v4 -> v5 -> v6 chain in one open, the same
+/// as a real device that hasn't synced in a while. The v4 step unconditionally
 /// resets `base_updated_at` to null for every row (see that migration's own
 /// comment), so this test's assertions reflect the *end* state of the full
 /// chain rather than the v3-only backfill in isolation — the v3-only
 /// backfill behaviour itself is covered directly by
-/// `migration_v3_to_v4_test.dart`'s "before" fixture, and the v5 step's own
-/// behaviour by `migration_v4_to_v5_test.dart`.
+/// `migration_v3_to_v4_test.dart`'s "before" fixture, the v5 step's own
+/// behaviour by `migration_v4_to_v5_test.dart`, and the v6 step's by
+/// `migration_v5_to_v6_test.dart`.
 void main() {
   late Directory tempDir;
   late String dbPath;
@@ -114,6 +116,15 @@ void main() {
           created_at INTEGER NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending',
           PRIMARY KEY (id)
+        );
+      ''');
+      // Phase M2's v6 step (`migration_v5_to_v6_test.dart`) ALTERs this
+      // table too, so it must exist here even though this test predates it.
+      raw.execute('''
+        CREATE TABLE sync_meta (
+          entity TEXT NOT NULL PRIMARY KEY,
+          last_pulled_at INTEGER NULL,
+          last_success_at INTEGER NULL
         );
       ''');
       // Drift's default DateTimeColumn storage is unix seconds, not

@@ -2537,3 +2537,64 @@ mocked widget test or from static analysis.
   nothing, that is not a defect — the spec asked for polling as a resume-
   time fallback specifically for the case where the deep-link exchange
   landed while the screen wasn't in the foreground to react to it.
+
+## 2026-09-07 — Gate 4 / T-M2.11 two-device live re-run
+
+### Bug found, not fixed — cross-device "newest-edit-wins" is actually "whichever push's server-touched timestamp is later," which reconnect delay can still decide
+
+Ran Gate 4's literal, long-deferred two-device scenario for the first time
+since the 2026-09-05 CAS fix — the one thing that has kept Gate 4 at
+`partial` through every phase since. Two real accounts on two real
+emulators (`kharcha_test` = Vineet/admin, `kharcha_test_2` = Rupesh/member
+— the household's actual real members, not throwaway test accounts), both
+taken fully offline (`svc wifi/data disable`), editing the same real
+expense (the household's ₹300 "Groceries" row, owned by Rupesh) to
+different values, then reconnected.
+
+**Sequence:** Vineet (device A) edited the row to ₹111 at 07:13 IST, while
+offline. ~3 minutes later, Rupesh (device B) edited the *same* row to ₹222
+at 07:16:21 IST, also while offline — the genuinely newer edit by wall-clock
+time. Device A reconnected first (~07:16) and its push succeeded
+unconditionally (server unchanged since the original ₹300). Device B
+reconnected about a minute later; its push hit a CAS mismatch exactly as
+designed, correctly triggering the conflict-retry path — but resolved
+**in Vineet's favour**, discarding Rupesh's objectively newer edit.
+Diagnostics confirmed it in Rupesh's own words: "local expense/... (edited
+2026-09-07T07:16:21.000) was overwritten by a newer remote change
+(2026-09-07 01:46:42.201865Z)" — `01:46:42Z` = `07:16:42` IST, i.e. the
+remote row Device B compared against claims to be *21 seconds newer* than
+Rupesh's real edit, despite Vineet's actual edit having happened **first**,
+three minutes earlier.
+
+**Root cause:** `touch_updated_at()`'s `updated_at := GREATEST(now(),
+incoming)` (`0005_functions_triggers.sql`) exists to stop a client from
+backdating `updated_at`, and does that job correctly. Its side effect:
+whenever a device pushes an edit *after* being offline for a stretch, the
+server stamps the row with its actual receipt time whenever that's later
+than the edit's own claimed timestamp — which it always is, by however
+long the device was offline. Vineet's device was offline for about 3
+minutes before its push landed, so the server recorded that edit as having
+happened at ~07:16:42 (push/receipt time), not 07:13 (the true edit time).
+Comparing that inflated timestamp against Rupesh's accurate, un-inflated
+07:16:21 (his own `local_updated_at`, which is never touched by this
+trigger since it's a client-only column) made a three-minutes-older edit
+look 21 seconds newer.
+
+**Net effect:** cross-device conflict resolution is not the
+reconnect-order-independent "newest-edit-wins" the 2026-09-05 fix intended
+— it degrades toward "whichever push's receipt-time-adjusted timestamp
+ends up later," which *is* sensitive to each device's own reconnect delay,
+exactly the push-order-sensitivity that fix was supposed to eliminate. The
+*other* half of Gate 4's requirement — no fork, no duplicate rows, both
+devices converge to one identical value — still held: both devices showed
+₹111 afterward, confirmed live on both screens.
+
+**Not fixed this session.** This needs a real design decision, not a quick
+patch, and touches the trigger layer of the live production schema:
+options include only letting `touch_updated_at()` clamp forward when
+`incoming` is *before* the row's own previous `updated_at` (true
+backdating) rather than always racing it against `now()`; or having
+conflict resolution primarily consult each side's own `local_updated_at`
+(the client-only, trigger-untouched column) rather than the server-side
+`updated_at` for the recency comparison. Gate 4 and T-M2.11 stay open
+pending that decision — see PROGRESS.md.

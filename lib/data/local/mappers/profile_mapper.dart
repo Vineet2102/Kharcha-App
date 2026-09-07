@@ -15,6 +15,7 @@ extension ProfileRowMapper on Profile {
     role: MemberRole.values.byName(role),
     colourHex: colourHex,
     isActive: isActive,
+    joinedAt: joinedAt?.toUtc(),
     createdAt: createdAt.toUtc(),
     updatedAt: updatedAt.toUtc(),
   );
@@ -29,6 +30,11 @@ extension ProfileDomainMapper on domain.Profile {
         role: Value(role.name),
         colourHex: Value(colourHex),
         isActive: Value(isActive),
+        // Written unconditionally, not `Value.absent()` when null: a leave
+        // or removal genuinely resets this to null server-side
+        // (`leave_household`/`remove_member`), and that transition must
+        // overwrite a stale non-null local value, not be skipped.
+        joinedAt: Value(joinedAt),
         createdAt: Value(createdAt),
         updatedAt: Value(updatedAt),
         isDirty: Value(dirty),

@@ -45,11 +45,46 @@ import 'package:kharcha/core/notifications/notification_service.dart';
 /// same real [SyncEngine]/[OutboxProcessor]/[PullService] machinery the app
 /// ships with is exercised end to end, deterministically, without needing
 /// out-of-band device control.
+///
+/// A second test (T-M2.13) extends the golden path to start from a brand-new
+/// account instead of an existing member: sign up → verify email → create a
+/// household → add an expense. It needs one more `--dart-define` — a real,
+/// never-before-used, deliverable address — **and a human present to click
+/// the real confirmation email** during its 5-minute polling window; there
+/// is no way to automate clicking a link in a real inbox. This is the same
+/// class of manual step T-M2.5's own verify-email screen was left
+/// "unverified live" against:
+///
+/// ```bash
+/// fvm flutter test integration_test/golden_path_test.dart \
+///   --dart-define-from-file=config/dev.json \
+///   --dart-define=TEST_USER_EMAIL=<a real member's email> \
+///   --dart-define=TEST_USER_PASSWORD=<their password> \
+///   --dart-define=TEST_SIGNUP_EMAIL=<a fresh, real, deliverable address> \
+///   --device-id=<id>
+/// ```
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   const testEmail = String.fromEnvironment('TEST_USER_EMAIL');
   const testPassword = String.fromEnvironment('TEST_USER_PASSWORD');
+
+  // Bootstrap once for the whole suite, not per-test: `Supabase.initialize`
+  // throws if called a second time in the same process, and both tests in
+  // this file need the identical tz/Supabase/notification setup.
+  var bootstrapped = false;
+  Future<void> ensureBootstrapped() async {
+    if (bootstrapped) return;
+    AppConfig.assertValid();
+    tz_data.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation(AppConstants.timeZoneName));
+    await Supabase.initialize(
+      url: AppConfig.supabaseUrl,
+      publishableKey: AppConfig.supabaseAnonKey,
+    );
+    await NotificationService.instance.init();
+    bootstrapped = true;
+  }
 
   testWidgets('golden path: sign in, add expense offline and online, both '
       'sync (spec §13)', (tester) async {
@@ -61,15 +96,7 @@ void main() {
         "(spec §14.1 doesn't run it), so it fails loudly instead.",
       );
     }
-    AppConfig.assertValid();
-
-    tz_data.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation(AppConstants.timeZoneName));
-    await Supabase.initialize(
-      url: AppConfig.supabaseUrl,
-      publishableKey: AppConfig.supabaseAnonKey,
-    );
-    await NotificationService.instance.init();
+    await ensureBootstrapped();
 
     final connectivity = _FakeConnectivityService();
 
@@ -177,6 +204,99 @@ void main() {
     await _pumpUntil(tester, () => find.text('₹222.00').evaluate().isNotEmpty);
     expect(find.text('₹111.00'), findsAtLeastNWidgets(1));
     expect(find.text('₹222.00'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('golden path from a brand-new account: sign up, verify email, create a '
+      'household, add an expense (spec T-M2.13)', (tester) async {
+    final signupEmail = const String.fromEnvironment('TEST_SIGNUP_EMAIL');
+    const signupPassword = String.fromEnvironment(
+      'TEST_SIGNUP_PASSWORD',
+      defaultValue: 'GoldenPath123',
+    );
+    if (signupEmail.isEmpty) {
+      fail(
+        'TEST_SIGNUP_EMAIL was not provided via --dart-define. Must be a '
+        'real, never-before-used, deliverable address — sign-up needs a '
+        'human to click the real confirmation email during this test\'s '
+        '5-minute polling window below (spec T-M1.8 requires email '
+        'confirmation; there is no way to automate clicking a real inbox '
+        'link). Run with e.g. '
+        '--dart-define=TEST_SIGNUP_EMAIL=you+<a fresh timestamp>@example.com.',
+      );
+    }
+    await ensureBootstrapped();
+
+    await tester.pumpWidget(const ProviderScope(child: KharchaApp()));
+
+    // --- sign up ---
+    await _pumpUntil(
+      tester,
+      () => find.text('Sign in').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 60),
+    );
+    await _tap(tester, find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Golden Path Test');
+    await tester.enterText(fields.at(1), signupEmail);
+    await tester.enterText(fields.at(2), signupPassword);
+    await tester.enterText(fields.at(3), signupPassword);
+    await _tap(tester, find.widgetWithText(FilledButton, 'Create account'));
+    await _pumpUntil(
+      tester,
+      () => find.text('Resend email').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 60),
+    );
+
+    // --- verify email — needs a human to click the real link ---
+    // VerifyEmailScreen polls `refreshSession()` every 5s on its own; this
+    // just waits for that polling to land somewhere past it. Generous on
+    // purpose: whoever runs this live needs time to notice the email.
+    await _pumpUntil(
+      tester,
+      () =>
+          find.text('Create a household').evaluate().isNotEmpty ||
+          find.text('Dashboard').evaluate().isNotEmpty,
+      timeout: const Duration(minutes: 5),
+    );
+
+    // --- household gate: create one ---
+    if (find.text('Create a household').evaluate().isNotEmpty) {
+      await _tap(tester, find.text('Create a household'));
+      await tester.pumpAndSettle();
+      // Entered explicitly rather than relying on the screen's own
+      // prefill-from-cached-profile-name timing, which races the profile
+      // row the sign-up trigger creates server-side.
+      await tester.enterText(
+        find.byType(TextFormField),
+        'Golden Path Household',
+      );
+      await _tap(tester, find.widgetWithText(FilledButton, 'Continue'));
+      await _pumpUntil(
+        tester,
+        () => find.text("I'll do this later").evaluate().isNotEmpty,
+        timeout: const Duration(seconds: 30),
+      );
+      await _tap(tester, find.text("I'll do this later"));
+    }
+
+    await _pumpUntil(
+      tester,
+      () => find.text('Dashboard').evaluate().isNotEmpty,
+      timeout: const Duration(seconds: 60),
+    );
+    expect(find.text('Dashboard'), findsOneWidget);
+
+    // --- the new household already has the 20 seeded categories/6 seeded
+    // payment methods (spec F-15's own acceptance line) — adding an
+    // expense exercises exactly that, reusing the same helper the other
+    // test uses.
+    await _addExpense(tester, amount: '50.00');
+    await _tap(tester, find.text('Expenses'));
+    await tester.pumpAndSettle();
+    await _pumpUntil(tester, () => find.text('₹50.00').evaluate().isNotEmpty);
+    expect(find.text('₹50.00'), findsAtLeastNWidgets(1));
   });
 }
 
