@@ -2661,3 +2661,43 @@ project's own established discipline (T-1.2), the access token stays in
 the user's own shell, so `supabase db push` is the user's action, not
 run from this session. Gate 4 / T-M2.11 stay open until it's pushed and
 the two-device scenario is re-run live to confirm.
+
+## 2026-09-07 — Gate 4 live re-verification: fix confirmed, passed
+
+Migration `0016_client_edited_at.sql` pushed to production by the user
+(`supabase db push`), confirmed live by a direct REST probe
+(`expenses?select=client_edited_at` — went from `42703 column does not
+exist` to a clean empty-array response under RLS). Re-ran T-M2.11's exact
+two-device scenario on the same two real emulators (`kharcha_test` =
+Vineet/admin, `kharcha_test_2` = Rupesh/member) against the same real
+household, deliberately mirroring the original timing: both devices
+offline, Vineet edited the real Groceries expense to ₹150 at 09:33:21 IST,
+Rupesh edited the same row to ₹275 at 09:38:08 IST (~4m47s later, the
+genuinely newer edit) — same shape as the original run where Vineet edited
+first and Rupesh edited later-but-genuinely-newer. Vineet's device (A)
+reconnected first (09:38:25 IST) and pushed unconditionally (server
+unchanged since baseline). Rupesh's device (B) reconnected about a minute
+later (09:40:03 IST); its push hit the CAS mismatch exactly as before —
+but this time resolved **in Rupesh's favour**, correctly recognising his
+edit as the genuinely newer one via `client_edited_at` rather than the
+receipt-time-inflated `updated_at`. Confirmed by pulling both devices
+after convergence (Dashboard, Analytics, and Expenses list independently,
+via pull-to-refresh on device A) — both show Groceries at ₹275.00 with no
+fork and no stale value on either device, the exact opposite of the
+2026-09-07 T-M2.11 finding under the same reconnect-order shape (earlier
+edit reconnects first, later edit reconnects second — this time the later
+edit correctly wins instead of losing).
+
+Diagnostics screen's conflict-log entry was not independently checked this
+pass (an emulator UI-automation quirk made the Settings tab's tap target
+unreliable to hit blind; not worth further session time once the actual
+data convergence — Gate 4's literal, load-bearing acceptance criterion —
+was already confirmed on both devices through three independent screens).
+The discard-and-log code path itself (`_logConflictLoss`) is unchanged by
+this fix and was already covered by existing unit tests plus the new
+regression test in `push_conflict_resolution_test.dart`.
+
+**Gate 4: passed.** The household's real "Groceries" expense is left at
+₹275 from this test, per this project's own established precedent
+(matches the ₹111/₹222/₹150 sequence of prior live-test artifacts) — left
+for a human to reconcile.
