@@ -145,8 +145,14 @@ Future<void> _pushUpsertWithCas({
 }) async {
   final id = payload['id'] as String;
   final meta = await loadMeta();
+  // `client_edited_at` carries the payload's claimed `updated_at` (the
+  // client's genuine edit time) through the server's touch_updated_at()
+  // trigger untouched, so a later conflict comparison isn't fooled by
+  // that trigger stamping `updated_at` itself to server receipt time
+  // (see docs/DECISIONS.md, Gate 4 / T-M2.11 2026-09-07).
+  final pushPayload = {...payload, 'client_edited_at': payload['updated_at']};
   final serverUpdatedAt = await remote.upsertIfBaseMatches(
-    payload,
+    pushPayload,
     meta?.baseUpdatedAt,
   );
   if (serverUpdatedAt != null) {
@@ -165,7 +171,7 @@ Future<void> _pushUpsertWithCas({
     // nothing left to compare against, so just push it unconditionally
     // (the same path a brand-new row takes) and trust whatever the server
     // hands back this time, not the stale payload.
-    final base = await remote.upsertIfBaseMatches(payload, null);
+    final base = await remote.upsertIfBaseMatches(pushPayload, null);
     await markSynced(base!);
     return;
   }
@@ -222,8 +228,17 @@ void _logConflictLoss(
   );
 }
 
-DateTime _updatedAtOf(Map<String, dynamic> json) =>
-    DateTime.parse(json['updated_at'] as String).toUtc();
+/// The timestamp conflict resolution (push-CAS and pull D12 alike) should
+/// actually compare: `client_edited_at` when present — the client's
+/// genuine edit time, never touched by `touch_updated_at()` — falling back
+/// to `updated_at` only for a row from before the 0016 migration backfilled
+/// it. Comparing raw `updated_at` here is the exact Gate 4 / T-M2.11
+/// (2026-09-07) bug: that column gets advanced to server-receipt time after
+/// any offline stretch, making "newest edit wins" actually mean "whichever
+/// device's push arrived at the server later." See docs/DECISIONS.md.
+DateTime _updatedAtOf(Map<String, dynamic> json) => DateTime.parse(
+  (json['client_edited_at'] ?? json['updated_at']) as String,
+).toUtc();
 
 class HouseholdSyncAdapter extends EntitySyncAdapter {
   HouseholdSyncAdapter(SupabaseClient client)

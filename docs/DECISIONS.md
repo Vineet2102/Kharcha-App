@@ -2598,3 +2598,66 @@ conflict resolution primarily consult each side's own `local_updated_at`
 (the client-only, trigger-untouched column) rather than the server-side
 `updated_at` for the recency comparison. Gate 4 and T-M2.11 stay open
 pending that decision — see PROGRESS.md.
+
+## 2026-09-07 — Gate 4 fix: a new `client_edited_at` column decouples edit-time from receipt-time
+
+### Decision made, implemented, not yet pushed live
+
+Chose neither of the two options floated in the entry above outright.
+Clamping `touch_updated_at()` against the row's own previous `updated_at`
+(rather than `now()`) was rejected on reflection: `updated_at` is also
+what `selectSince()` filters/orders by for pull-cursor pagination, and
+that pagination depends on `updated_at` being monotonic with *server
+receipt order*, not edit order — an offline device's edit landing with a
+timestamp behind another device's already-advanced cursor would mean that
+device never sees the update on a future pull, a real lost-update bug on
+the pull side, not just a cosmetic one. Comparing against
+`local_updated_at` instead (the other floated option) doesn't work as
+literally stated either: it's a client-local-only Drift column, never
+transmitted to the server, so a *different* device pulling or CAS-losing
+against this row has no way to read it.
+
+The actual fix: a new column, `client_edited_at`, added to all 9 syncable
+tables (`0016_client_edited_at.sql`) — carries the client's claimed edit
+timestamp through completely untouched, no trigger, no floor/ceiling
+against `now()`. `updated_at` keeps doing exactly what it did before
+(server-clock-monotonic, `touch_updated_at()` unchanged) and keeps backing
+`selectSince()`'s cursor. `entity_sync_adapters.dart`'s `_updatedAtOf()` —
+the one shared helper both the push-CAS conflict check and every
+`pullApply()`'s D12 check route through — now reads `client_edited_at`
+first, falling back to `updated_at` only for a pre-migration row that
+predates the backfill. `_pushUpsertWithCas()` stamps `client_edited_at`
+onto every outgoing payload from the payload's own `updated_at` (the
+domain model's edit timestamp, set client-side at edit time, already
+proven accurate — this is exactly the value the old, broken comparison
+was trying and failing to use). No Drift schema change needed on the
+client: the local mirror doesn't need to persist `client_edited_at`
+itself, since it's only ever used transiently, read straight off the
+freshly-pulled/fetched remote JSON at comparison time.
+
+One more thing needed it: `0012_household_functions.sql`'s membership
+RPCs (`create_household`/`join_household`/`leave_household`/
+`set_member_role`/`set_member_active`/`remove_member`) write `profiles`
+directly outside the client's push path — no payload ever stamps
+`client_edited_at` for those writes. Left alone, a stale
+`client_edited_at` there could make an older, still-unpushed local profile
+edit compare as "newer" than one of these authoritative RPC changes once
+that device reconnects — the identical bug class, via a different path.
+`0016` re-declares all 6 (`create or replace function`, byte-identical to
+0012 otherwise) adding `client_edited_at = now()` alongside their existing
+`updated_at = now()`.
+
+New regression test in `push_conflict_resolution_test.dart` reproduces
+the live T-M2.11 scenario with the real observed timestamps (Vineet's true
+edit 07:13 IST / server-receipt-inflated 07:16:42; Rupesh's true, genuinely
+newer edit 07:16:21) — confirmed to fail against the pre-fix code (asserted
+by temporarily reverting the adapter change and re-running) and pass
+against the fix. `fvm flutter analyze --fatal-infos` clean; `fvm flutter
+test` green at 525 (up from 524).
+
+**Not yet pushed to the live project** — `supabase/migrations/0016_...sql`
+is written and reviewed but not run against production; per this
+project's own established discipline (T-1.2), the access token stays in
+the user's own shell, so `supabase db push` is the user's action, not
+run from this session. Gate 4 / T-M2.11 stay open until it's pushed and
+the two-device scenario is re-run live to confirm.

@@ -70,26 +70,30 @@ void main() {
   const userId = 'user1';
   const expenseId = 'exp1';
 
-  Map<String, dynamic> payloadFor(DateTime updatedAt, {String note = 'edit'}) =>
-      {
-        'id': expenseId,
-        'household_id': householdId,
-        'user_id': userId,
-        'amount_paise': 5000,
-        'category_id': null,
-        'payment_method_id': null,
-        'spent_at': updatedAt.toIso8601String(),
-        'spent_on': updatedAt.toIso8601String(),
-        'note': note,
-        'merchant': '',
-        'has_receipt': false,
-        'recurring_rule_id': null,
-        'occurrence_date': null,
-        'created_by_device': null,
-        'created_at': updatedAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'deleted_at': null,
-      };
+  Map<String, dynamic> payloadFor(
+    DateTime updatedAt, {
+    String note = 'edit',
+    DateTime? clientEditedAt,
+  }) => {
+    'id': expenseId,
+    'household_id': householdId,
+    'user_id': userId,
+    'amount_paise': 5000,
+    'category_id': null,
+    'payment_method_id': null,
+    'spent_at': updatedAt.toIso8601String(),
+    'spent_on': updatedAt.toIso8601String(),
+    'note': note,
+    'merchant': '',
+    'has_receipt': false,
+    'recurring_rule_id': null,
+    'occurrence_date': null,
+    'created_by_device': null,
+    'created_at': updatedAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+    'client_edited_at': (clientEditedAt ?? updatedAt).toIso8601String(),
+    'deleted_at': null,
+  };
 
   Future<void> insertLocal({
     required DateTime updatedAt,
@@ -236,6 +240,49 @@ void main() {
           entry.message.contains(expenseId),
     );
     expect(logged, isTrue);
+  });
+
+  test('a genuinely newer local edit still wins after the remote device\'s '
+      'own reconnect delay inflated its server updated_at past ours (Gate 4 '
+      '/ T-M2.11 2026-09-07 fix) — conflict resolution must compare '
+      'client_edited_at, not the trigger-touched updated_at', () async {
+    // Mirrors the real two-device bug exactly: Vineet edits at 07:13, offline
+    // for ~3 minutes, reconnects and pushes at 07:16:42 — touch_updated_at()
+    // stamps the server row's updated_at to that receipt time, 21s *after*
+    // Rupesh's own, genuinely newer, 07:16:21 edit. Comparing raw
+    // updated_at (the pre-fix behaviour) would wrongly call Vineet's edit
+    // newer; client_edited_at preserves Vineet's true 07:13 edit time, so
+    // Rupesh's local edit correctly compares as newer.
+    final base = DateTime.utc(2026, 9, 7, 1, 43); // 07:13 IST
+    final vineetsTrueEditTime = base;
+    final vineetsServerReceiptTime = DateTime.utc(2026, 9, 7, 1, 46, 42); // 07:16:42 IST
+    final rupeshsTrueEditTime = DateTime.utc(2026, 9, 7, 1, 46, 21); // 07:16:21 IST
+
+    await insertLocal(
+      updatedAt: rupeshsTrueEditTime,
+      baseUpdatedAt: base.toIso8601String(),
+      dirty: true,
+      localUpdatedAt: rupeshsTrueEditTime,
+      note: 'Rupesh 222',
+    );
+    remote.casResult = null; // Vineet's push already moved the row
+    remote.serverRow = payloadFor(
+      vineetsServerReceiptTime, // updated_at: inflated by the server trigger
+      note: 'Vineet 111',
+      clientEditedAt: vineetsTrueEditTime, // the genuine, untouched edit time
+    );
+
+    await expectLater(
+      adapter.pushUpsert(db, payloadFor(rupeshsTrueEditTime, note: 'Rupesh 222')),
+      throwsA(isA<SyncConflictRetryException>()),
+      reason:
+          "Rupesh's edit is genuinely newer than Vineet's, so it must "
+          'retry and eventually win — not be silently discarded',
+    );
+
+    final local = await db.expenseDao.findById(expenseId);
+    expect(local!.note, 'Rupesh 222', reason: 'the newer local edit is kept');
+    expect(local.isDirty, isTrue);
   });
 
   test('a brand-new row (no base yet) pushes unconditionally', () async {
