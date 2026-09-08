@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kharcha — Privacy Policy</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="top"><a href="index.html">Kharcha</a> <a href="terms.html">Terms of Use</a></nav>
+  <header>
+    <div class="mark">₹</div>
+    <h1>Privacy Policy</h1>
+  </header>
+  <p class="updated">Last updated: 8 September 2026</p>
+
+  <p>Kharcha is a private, invite-only household expense tracker. It is not
+  a commercial product and is not distributed through any app store. This
+  policy explains what the app collects, where it lives, and who can see
+  it.</p>
+
+  <h2>What is collected</h2>
+  <ul>
+    <li><strong>Account info</strong>: your email address and the display name you choose.</li>
+    <li><strong>Expense data</strong>: every expense, income entry, budget, recurring rule, category, and payment method you or your household add.</li>
+    <li><strong>Receipt photos</strong>: if you attach a photo to an expense, that image is uploaded and stored.</li>
+    <li><strong>Feedback</strong>: if you use the in-app Feedback form, your rating, category, free-text message, app version, and platform (Android/iOS) are recorded against your account.</li>
+    <li><strong>Liveness</strong>: a single timestamp (<code>last_seen_at</code> on your account, <code>last_active_at</code> on your household) is updated at most once per hour while you use the app, so the owner can tell whether the app is actually being used.</li>
+  </ul>
+  <p><strong>That is the entirety of usage tracking in this app.</strong>
+  There is no analytics SDK, no crash reporter, no event stream, and no
+  device fingerprinting of any kind.</p>
+
+  <h2>Where it is stored</h2>
+  <p>Everything above is stored in a single Supabase project (PostgreSQL,
+  Authentication, and Storage) hosted in the <code>ap-south-1</code>
+  (Mumbai) region. Receipt photos are kept in a private storage bucket,
+  never a public one.</p>
+
+  <h2>Who can see it</h2>
+  <ul>
+    <li><strong>Your household.</strong> Every other member of your household can see the expenses, income, and budgets you add — that is the whole point of a shared household tracker. Nobody outside your household can see any of it: this is enforced by database-level access rules (Row Level Security), not just by the app's own screens.</li>
+    <li><strong>The app's owner</strong>, as the operator of the Supabase project this data lives in, has the technical ability to access the underlying database. The owner does not sell, share, or use your data for any purpose other than running and maintaining the app, and does not paste real rows of your data into any third-party tool or service.</li>
+    <li><strong>Nobody else.</strong> Your data is never sold, shared with advertisers, or handed to any third-party analytics or marketing service.</li>
+  </ul>
+
+  <h2>Retention and deletion</h2>
+  <p>Ordinary edits and deletes (e.g. deleting an expense) are soft-deletes
+  — the row is marked deleted and kept for up to 90 days so it can be
+  recovered if you change your mind or hit an app bug, then removed for
+  good.</p>
+  <p><strong>Deleting your account is different: it is immediate and
+  permanent.</strong> From Settings → Delete account, you can export a
+  full copy of everything you personally added before deleting, then
+  confirm the deletion. Deleting your account permanently and immediately
+  removes: your account, and every expense, income, budget, recurring
+  rule, and receipt you added. Other members' entries in your household
+  are not affected. This is not a soft delete — once done, it cannot be
+  undone or recovered by the owner.</p>
+
+  <h2>Your rights</h2>
+  <p>You can, at any time, from inside the app:</p>
+  <ul>
+    <li>Export a full copy of the data you personally added (Settings → Data → Export my data).</li>
+    <li>Delete your account and everything you added (Settings → Delete account).</li>
+  </ul>
+  <p>Both of these are entirely self-service — you never need to ask the
+  owner, and the owner never needs <code>adb</code>, a cable, or direct
+  database access to do it for you.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy, or about your data, can be sent to
+  <a href="mailto:vineetiimabc@gmail.com">vineetiimabc@gmail.com</a>.</p>
+
+  <footer>&larr; <a href="index.html">Back to Kharcha</a></footer>
+</div>
+</body>
+</html>
