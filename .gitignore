@@ -1,72 +1,70 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# OS / editor noise
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+*.tmp
 .atom/
-.build/
-.buildlog/
-.history
+.history/
 .svn/
 .swiftpm/
-migrate_working_dir/
-
-# IntelliJ related
+.vscode/
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Flutter / Dart generated/cache
 .dart_tool/
-.flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
-/build/
-/coverage/
+**/build/
+coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+**/*.symbols
+**/*.map.json
+**/GeneratedPluginRegistrant.*
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Widget Preview related
-.widget_preview/
-
-# FVM Version Cache
-.fvm/*
-!.fvm/fvm_config.json
-
-# Claude Code session state
-.claude/
-
-# Secrets
-config/*.json
-!config/example.json
+# Android / iOS local build files
+android/.gradle/
+android/local.properties
 android/key.properties
 android/app/*.jks
+android/**/*.iml
 *.keystore
+*.p12
+*.p8
+*.mobileprovision
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+**/Pods/
+**/DerivedData/
+
+# FVM / local tooling
+.fvm/
+!.fvm/fvm_config.json
+
+# Secrets / local env
 .env
 .env.*
+config/*.json
+!config/example.json
+**/secrets/**
+*.pem
+*.crt
 
-# Generated
+# Generated code (keep source templates and real models in git)
 *.g.dart
 *.freezed.dart
 *.mocks.dart
 
-# Project spec (private)
+# Local project state / private notes
+.claude/
 KHARCHA_SPEC.md
+migrate_working_dir/
