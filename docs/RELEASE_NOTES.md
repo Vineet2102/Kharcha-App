@@ -1,5 +1,27 @@
 # Release notes
 
+## v2.0.2 (2026-09-09)
+
+**What's new**
+- **New app icon** — Kharcha now has its own logo instead of the default
+  Flutter icon.
+- **Refreshed look** — updated app theme (Neon Mint).
+
+**Fixed**
+- Sign-up confirmation and password-reset emails now link back into the
+  app correctly — they previously pointed at a `localhost` address that
+  only worked on the developer's own machine, so anyone else's
+  confirm/reset link would fail to open Kharcha.
+- Confirmation and password-reset emails are now sent through a proper
+  mail service, so they arrive reliably instead of hitting a very low
+  hourly sending limit.
+- A member who leaves or is removed from a household, or deletes their
+  account, now correctly disappears from other members' devices on the
+  next sync — previously their name/profile could keep showing up until
+  a full cache clear.
+- Fixed a startup crash that could happen because a notification
+  referenced an app icon that no longer existed.
+
 ## v2.0.1 (2026-09-08)
 
 Fixes a packaging bug in v2.0.0 (below) that silently broke sign-in for

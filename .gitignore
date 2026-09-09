@@ -31,6 +31,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/build
 /coverage/
 
 # Symbolication related
@@ -70,3 +71,6 @@ android/app/*.jks
 
 # Project spec (private)
 KHARCHA_SPEC.md
+
+# Local-machine runbook (references this Mac's own paths/fixes)
+ios_build.txt
