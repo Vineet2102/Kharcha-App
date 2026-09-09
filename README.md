@@ -19,6 +19,9 @@ Private sideload only — there is no Play Store or App Store listing.
   implementation choice and every bug found along the way, in build order.
 - [`INSTALL.md`](INSTALL.md) — sideload install instructions to hand a
   friend, in plain (non-technical) language.
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — a complete beginner's
+  guide to using the app itself, from first sign-up to every feature.
+  Hand this to friends alongside `INSTALL.md`.
 - [`docs/ONBOARDING.md`](docs/ONBOARDING.md) — the message template for
   inviting a friend, plus the rollout-ring order (§16.4) and the three
   questions friends actually ask.
